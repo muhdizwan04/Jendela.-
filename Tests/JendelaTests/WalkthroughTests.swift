@@ -181,9 +181,13 @@ final class WalkthroughTests: XCTestCase {
                      account: "trial-start", service: "com.jendela.desktop")
         state.licensing.refresh()
         XCTAssertFalse(state.isPro)
-        XCTAssertTrue(state.requiresLicence(.clipboard))
-        XCTAssertFalse(state.requiresLicence(.home), "free tabs must stay free")
+        // The clipboard is capped, not paywalled — the pricing page puts "Five
+        // clipboard entries" on the free plan. Paywalling the tab made the cap
+        // below unreachable.
+        XCTAssertFalse(state.requiresLicence(.clipboard))
         XCTAssertEqual(state.effectiveClipboardLimit, 5)
+        XCTAssertFalse(state.requiresLicence(.home), "free tabs must stay free")
+        XCTAssertTrue(state.requiresLicence(.shelf), "paid tabs still need a licence")
 
         Keychain.remove(account: "trial-start", service: "com.jendela.desktop")
     }

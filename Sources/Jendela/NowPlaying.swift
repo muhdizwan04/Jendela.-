@@ -323,8 +323,14 @@ final class NowPlayingMonitor: ObservableObject {
     }
 
     /// The rich path: title, artist, artwork and real paused state.
-    private func applyYouTube(payload: String) {
-        let parts = payload.components(separatedBy: "\\u{1F}")
+    ///
+    /// The separator has to be the unit separator itself. This split was on the
+    /// literal text `\u{1F}`, which the payload never contains — the page joins
+    /// its fields with `String.fromCharCode(31)` — so the field count never
+    /// matched and every rich update fell through to `clearYouTube()`: no
+    /// title, no artist, no artwork and no play state, ever.
+    func applyYouTube(payload: String) {
+        let parts = payload.components(separatedBy: "\u{1F}")
         guard parts.count == 4, !parts[0].isEmpty else { clearYouTube(); return }
 
         let playing = parts[3] == "1"

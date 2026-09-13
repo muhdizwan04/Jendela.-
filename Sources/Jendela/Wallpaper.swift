@@ -1,4 +1,5 @@
 import AppKit
+import CryptoKit
 import Foundation
 
 /// Renders desktop pictures: theme gradients, and a TopNotch-style mask that
@@ -59,6 +60,9 @@ enum WallpaperRenderer {
             }
             let resolved = urls
             let outcome = failure
+            // Only prune when every job succeeded: a partial failure means the
+            // set still in use is not fully known.
+            if outcome == nil { prune(keeping: Set(resolved.values)) }
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
                     set(resolved)
@@ -76,6 +80,40 @@ enum WallpaperRenderer {
         }
     }
 
+    // MARK: - Cache identity
+
+    /// A name for a source picture that is the same on every launch.
+    ///
+    /// `hashValue` was used here, and Swift seeds it randomly per process: the
+    /// same wallpaper got a new file name every run, so masking one picture
+    /// left a multi-megabyte PNG behind on each launch and nothing ever
+    /// collected them. Size and modification date are folded in so that
+    /// editing the picture still produces a fresh render.
+    static func digest(forPath path: String) -> String {
+        var material = path
+        if let attributes = try? FileManager.default.attributesOfItem(atPath: path) {
+            let size = (attributes[.size] as? NSNumber)?.int64Value ?? 0
+            let modified = (attributes[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
+            material += "|\(size)|\(Int(modified))"
+        }
+        return SHA256.hash(data: Data(material.utf8))
+            .prefix(8)
+            .map { String(format: "%02x", $0) }
+            .joined()
+    }
+
+    /// Drops cached pictures that are no longer in use. Only ever removes files
+    /// this renderer wrote, and never one that was just handed to the window
+    /// server.
+    static func prune(keeping keep: Set<URL>) {
+        let kept = Set(keep.map(\.standardizedFileURL.path))
+        guard let files = try? FileManager.default.contentsOfDirectory(
+            at: cacheDirectory, includingPropertiesForKeys: nil) else { return }
+        for file in files where file.pathExtension == "png" && !kept.contains(file.standardizedFileURL.path) {
+            try? FileManager.default.removeItem(at: file)
+        }
+    }
+
     // MARK: - Drawing
 
     private static func render(_ job: Job) throws -> URL {
@@ -85,8 +123,7 @@ enum WallpaperRenderer {
             name = "theme-\(id)-\(Int(job.pixelSize.width))x\(Int(job.pixelSize.height))-m\(Int(job.maskHeight)).png"
         case .image(let path):
             let stem = URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent
-            let digest = abs(path.hashValue)
-            name = "masked-\(stem)-\(digest)-\(Int(job.pixelSize.width))x\(Int(job.pixelSize.height))-m\(Int(job.maskHeight)).png"
+            name = "masked-\(stem)-\(digest(forPath: path))-\(Int(job.pixelSize.width))x\(Int(job.pixelSize.height))-m\(Int(job.maskHeight)).png"
         }
         let url = cacheDirectory.appendingPathComponent(name)
 

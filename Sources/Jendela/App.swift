@@ -576,7 +576,10 @@ final class JendelaState: ObservableObject {
     /// round trip rather than trusting that new settings were wired up.
     func settingsSnapshotForTesting() -> JendelaSettings { snapshot() }
 
-    private func snapshot() -> JendelaSettings {
+    /// Not private: the round-trip test compares this against what comes back
+    /// from disk, which is the only way to catch a setting that is written but
+    /// never read.
+    func snapshot() -> JendelaSettings {
         JendelaSettings(
             quickNoteText: quickNoteText,
             appliedTemplateID: appliedTemplateID,
@@ -745,10 +748,16 @@ final class JendelaState: ObservableObject {
     /// Which tabs need a licence once the trial is over. The hub, notes, music
     /// and sound stay free forever — an app that stops being useful the moment
     /// a trial lapses does not earn goodwill.
+    ///
+    /// The clipboard is not one of them. It is capped instead, by
+    /// `effectiveClipboardLimit`: putting a paywall over the whole tab made
+    /// that cap unreachable, and contradicted both the pricing page ("Five
+    /// clipboard entries" on the free plan) and the FAQ, which says history
+    /// shortens rather than disappears.
     func requiresLicence(_ section: NotchSection) -> Bool {
         switch section {
-        case .clipboard, .shelf, .day, .ai: return !isPro
-        case .home, .music, .sound, .discord: return false
+        case .shelf, .day, .ai: return !isPro
+        case .home, .clipboard, .music, .sound, .discord: return false
         }
     }
 
@@ -965,13 +974,26 @@ final class JendelaState: ObservableObject {
         return WallpaperRenderer.RGB(r: c.r, g: c.g, b: c.b)
     }
 
+    /// Puts the user's own desktop pictures back.
+    ///
+    /// A picture that has since been moved or deleted is skipped rather than
+    /// handed to the window server, which fails silently: clearing the stored
+    /// paths after such a failure left the masked version on screen with no
+    /// record of what it replaced, and no way back.
     private func restoreWallpapers() {
         guard !originalWallpapers.isEmpty else { return }
         var urls: [Int: URL] = [:]
+        var missing = false
         for (index, path) in originalWallpapers.enumerated() where !path.isEmpty {
+            guard FileManager.default.fileExists(atPath: path) else { missing = true; continue }
             urls[index] = URL(fileURLWithPath: path)
         }
+        guard !urls.isEmpty else {
+            wallpaperError = "The original desktop picture is no longer on this Mac"
+            return
+        }
         WallpaperRenderer.set(urls)
+        wallpaperError = missing ? "Some original desktop pictures are no longer on this Mac" : nil
         originalWallpapers = []
     }
 
