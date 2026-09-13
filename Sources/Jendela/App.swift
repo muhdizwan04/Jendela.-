@@ -384,6 +384,7 @@ final class JendelaState: ObservableObject {
     let audio = SystemAudio()
     let batteries = Batteries()
     let meetings = Meetings()
+    let licensing = Licensing()
 
     private var cancellables = Set<AnyCancellable>()
     private var focusTimer: Timer?
@@ -459,6 +460,7 @@ final class JendelaState: ObservableObject {
             power.objectWillChange.eraseToAnyPublisher(),
             batteries.objectWillChange.eraseToAnyPublisher(),
             meetings.objectWillChange.eraseToAnyPublisher(),
+            licensing.objectWillChange.eraseToAnyPublisher(),
             nowPlaying.objectWillChange.eraseToAnyPublisher(),
             audio.objectWillChange.eraseToAnyPublisher()
         ] {
@@ -709,6 +711,45 @@ final class JendelaState: ObservableObject {
     // The hub is deliberately opaque black so it merges with the notch, so
     // there is no blur left to reduce.
     var callIsActive: Bool { discordCameraOn || discordSharingOn }
+
+    // MARK: - Licensing
+
+    var isPro: Bool { licensing.isPro }
+    var openStudio: (() -> Void)?
+
+    /// Which tabs need a licence once the trial is over. The hub, notes, music
+    /// and sound stay free forever — an app that stops being useful the moment
+    /// a trial lapses does not earn goodwill.
+    func requiresLicence(_ section: NotchSection) -> Bool {
+        switch section {
+        case .clipboard, .shelf, .day, .ai: return !isPro
+        case .home, .music, .sound, .discord: return false
+        }
+    }
+
+    /// Unlicensed history is short rather than absent, so the feature can still
+    /// be understood before buying.
+    var effectiveClipboardLimit: Int { isPro ? clipboardLimit : 5 }
+
+    func paywallDetail(for section: NotchSection) -> String {
+        switch section {
+        case .clipboard: "Keep hundreds of copies, searchable and pinned, encrypted on this Mac."
+        case .shelf: "Park files on the notch and drag them wherever they need to go."
+        case .day: "Your next meeting with a join button, and every battery at a glance."
+        case .ai: "Ask a question from the notch, using your own ChatGPT account."
+        default: "Unlock the rest of Jendela."
+        }
+    }
+
+    func openPurchasePage() {
+        if let url = URL(string: "https://jendela.app/buy") { NSWorkspace.shared.open(url) }
+    }
+
+    func showLicenceEntry() {
+        studioSection = .settings
+        closeNotch()
+        openStudio?()
+    }
 
     /// What the hover gate consults. The AI tab used to set `notchPinned`
     /// outright, which left the hub pinned after you had merely visited it —
@@ -1061,7 +1102,7 @@ final class JendelaState: ObservableObject {
 
     /// Pinned entries are never evicted.
     private func trimClipboard() {
-        let cap = max(5, min(clipboardLimit, ClipboardStore.maxEntries))
+        let cap = max(5, min(effectiveClipboardLimit, ClipboardStore.maxEntries))
         guard clipboardItems.filter({ !$0.pinned }).count > cap else { return }
         var kept: [ClipboardEntry] = []
         var unpinned = 0
@@ -1300,6 +1341,12 @@ final class JendelaAppDelegate: NSObject, NSApplicationDelegate {
         clipboardMonitor = ClipboardMonitor(state: state)
         clipboardMonitor?.start()
         state.applyHotKeys()
+        state.openStudio = { [weak state] in
+            NSApp.activate(ignoringOtherApps: true)
+            NSApp.windows.first { $0.identifier?.rawValue.contains(JendelaApp.studioWindowID) == true }?
+                .makeKeyAndOrderFront(nil)
+            _ = state
+        }
         state.publishWidgetSnapshot()
         notchCoordinator?.show()
         musicIndicatorCoordinator?.show()
@@ -2448,6 +2495,8 @@ struct SettingsStudioView: View {
                     .labelsHidden()
                     .frame(width: 150)
                 }
+                LicenceCard(state: state)
+
                 ControlCard(
                     title: "Keyboard shortcuts",
                     subtitle: "Reach the hub without the pointer",
@@ -2805,7 +2854,14 @@ struct NotchPanelView: View {
     @ViewBuilder
     private var sectionContent: some View {
         Group {
-            switch state.selectedSection {
+            if state.requiresLicence(state.selectedSection) {
+                PaywallView(
+                    state: state,
+                    feature: state.selectedSection.rawValue,
+                    detail: state.paywallDetail(for: state.selectedSection)
+                )
+            } else {
+                switch state.selectedSection {
             case .home: HomeNotchSection(state: state)
             case .clipboard: ClipboardNotchSection(state: state)
             case .music: MusicNotchSection(state: state)
@@ -2815,12 +2871,13 @@ struct NotchPanelView: View {
                 ShelfNotchSection(state: state)
             case .day:
                 DayNotchSection(state: state)
-            case .ai:
+                case .ai:
                 QuickChatView(client: state.quickChat) { [weak state] focused in
                     state?.chatFocused = focused
                     if focused { state?.noteChatActivity() }
                 } onActivity: { [weak state] in
                     state?.noteChatActivity()
+                }
                 }
             }
         }
