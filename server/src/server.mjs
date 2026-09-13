@@ -5,6 +5,7 @@ import path from "node:path";
 import { open, customerByEmail, record, now, today, token } from "./db.mjs";
 import { mint } from "./licence.mjs";
 import { send } from "./mail.mjs";
+import { isAdmin, stats, search, issue, revoke } from "./admin.mjs";
 
 const PORT = Number(process.env.PORT || 8787);
 const SITE = process.env.SITE_URL || `http://localhost:${PORT}`;
@@ -188,6 +189,48 @@ const routes = {
       text: `Here is your licence key again:\n\n${licence.key}\n`,
     });
     json(res, 200, { ok: true });
+  },
+
+  // ---------------------------------------------------------------- admin
+  //
+  // Every one of these re-checks admin on the request. Hiding the page would
+  // not be security; the endpoints are the door.
+  "GET /api/admin/stats": (req, res) => {
+    const customer = currentCustomer(req);
+    if (!isAdmin(customer)) return json(res, 403, { error: "Not allowed." });
+    json(res, 200, stats(db));
+  },
+
+  "GET /api/admin/customers": (req, res, url) => {
+    const customer = currentCustomer(req);
+    if (!isAdmin(customer)) return json(res, 403, { error: "Not allowed." });
+    json(res, 200, { customers: search(db, url.searchParams.get("q")) });
+  },
+
+  "POST /api/admin/licence/issue": async (req, res) => {
+    const customer = currentCustomer(req);
+    if (!isAdmin(customer)) return json(res, 403, { error: "Not allowed." });
+    const { email, days, note } = JSON.parse((await readBody(req)).toString() || "{}");
+    if (!email) return json(res, 400, { error: "An email is required." });
+    const licence = issue(db, { email, days: days || null, note });
+    await send({
+      to: email,
+      subject: "Your Jendela. licence",
+      text: `Here is your licence key:\n\n${licence.key}\n`,
+    });
+    json(res, 200, { ok: true, key: licence.key });
+  },
+
+  "POST /api/admin/licence/revoke": async (req, res) => {
+    const customer = currentCustomer(req);
+    if (!isAdmin(customer)) return json(res, 403, { error: "Not allowed." });
+    const { id } = JSON.parse((await readBody(req)).toString() || "{}");
+    json(res, 200, { ok: revoke(db, id) });
+  },
+
+  "GET /api/admin/whoami": (req, res) => {
+    const customer = currentCustomer(req);
+    json(res, 200, { admin: isAdmin(customer), email: customer?.email ?? null });
   },
 
   /// Counted, then redirected. Nothing about who is downloading is stored.

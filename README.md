@@ -164,6 +164,22 @@ verifies with signs the key that is issued.
 the server issued and checks the app accepts it — if the two ever disagreed
 on key format, every customer would pay and then be refused.
 
+### Dashboard
+
+`/admin.html`, restricted to the single address in `ADMIN_EMAIL`, signing
+in through the same magic link as everyone else — one way in, and it is the
+one already covered by tests. Every admin endpoint re-checks on the
+request; hiding the page would not be security.
+
+It shows active licences, gross, downloads and purchases per day, recent
+licences, customer search, manual issuing and revoking.
+
+It deliberately shows no install or trial numbers. The app never contacts
+the server, so those figures do not exist — a funnel between downloads and
+purchases would be a guess presented as a measurement. Revoking is honest
+about its limits too: it marks the row, but a key already on someone's Mac
+keeps working, because licences verify offline.
+
 ## Releasing
 
 `./Support/release.sh --check` reports whether a release is possible and

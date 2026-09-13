@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard — Jendela.</title>
+<link rel="icon" href="assets/icon.png">
+<link rel="stylesheet" href="styles.css">
+<style>
+  .stat-row { display:grid; gap:14px; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); }
+  .stat { background:var(--bg-soft); border:1px solid var(--line); border-radius:14px; padding:18px; }
+  .stat .n { font-size:28px; font-weight:700; letter-spacing:-.02em; }
+  .stat .k { font-size:12px; color:var(--faint); text-transform:uppercase; letter-spacing:.05em; }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  th { text-align:left; color:var(--faint); font-weight:600; font-size:12px;
+       text-transform:uppercase; letter-spacing:.04em; padding:10px 8px; border-bottom:1px solid var(--line); }
+  td { padding:11px 8px; border-bottom:1px solid var(--line); color:var(--muted); }
+  td.key { font-family:ui-monospace,monospace; font-size:11px; word-break:break-all; color:var(--faint); }
+  .pill { padding:2px 8px; border-radius:999px; font-size:11px; font-weight:650; }
+  .pill.active { background:rgba(110,231,183,.14); color:#6EE7B7; }
+  .pill.refunded, .pill.revoked { background:rgba(248,113,113,.14); color:#F87171; }
+  input.search { width:100%; padding:12px 14px; border-radius:10px; border:1px solid var(--line);
+                 background:#0E0D13; color:var(--text); font-size:15px; }
+  .bars { display:flex; align-items:flex-end; gap:5px; height:110px; }
+  .bar { flex:1; background:var(--accent-strong); border-radius:3px 3px 0 0; min-height:2px; position:relative; }
+  .bar span { position:absolute; bottom:-19px; left:50%; translate:-50% 0; font-size:9px; color:var(--faint); }
+  .note { background:rgba(167,139,250,.07); border:1px solid rgba(167,139,250,.2);
+          border-radius:12px; padding:16px; color:var(--muted); font-size:13.5px; }
+</style>
+</head>
+<body>
+<nav><div class="wrap">
+  <a class="brand" href="index.html"><img src="assets/icon.png" alt=""> Jendela.</a>
+  <div class="links"><span id="who" style="color:var(--faint);font-size:13px"></span><a href="index.html">Site</a></div>
+</div></nav>
+
+<section style="border-top:none">
+  <div class="wrap">
+    <div id="denied" hidden>
+      <div class="section-head"><h2>Dashboard</h2><p>Sign in with the owner address to continue.</p></div>
+      <p><a class="btn primary" href="account.html">Go to sign-in</a></p>
+    </div>
+
+    <div id="panel" hidden>
+      <div class="section-head" style="margin-bottom:24px"><h2>Dashboard</h2></div>
+
+      <div class="stat-row" id="stats"></div>
+
+      <h3 style="margin:38px 0 14px">Downloads · last 14 days</h3>
+      <div class="bars" id="downloads"></div>
+
+      <h3 style="margin:46px 0 14px">Purchases · last 14 days</h3>
+      <div class="bars" id="purchases"></div>
+
+      <div class="note" style="margin-top:44px">
+        <strong style="color:var(--text)">There are no install or trial numbers here, by design.</strong><br>
+        The app never contacts this server: licences verify offline and nothing
+        is reported back. Downloads and purchases are the only two things that
+        actually happen here, so they are the only two things shown. A funnel
+        between them would be a guess presented as a measurement.
+      </div>
+
+      <h3 style="margin:44px 0 14px">Recent licences</h3>
+      <table id="recent"></table>
+
+      <h3 style="margin:44px 0 14px">Find a customer</h3>
+      <input class="search" id="q" placeholder="Search by email…">
+      <div id="results" style="margin-top:16px"></div>
+
+      <h3 style="margin:44px 0 14px">Issue a licence by hand</h3>
+      <div class="card">
+        <form id="issue" style="display:flex;gap:10px;flex-wrap:wrap">
+          <input id="issue-email" type="email" required placeholder="person@example.com"
+                 style="flex:1;min-width:220px;padding:11px 13px;border-radius:9px;
+                        border:1px solid var(--line);background:#0E0D13;color:var(--text)">
+          <input id="issue-note" placeholder="reason (optional)"
+                 style="flex:1;min-width:160px;padding:11px 13px;border-radius:9px;
+                        border:1px solid var(--line);background:#0E0D13;color:var(--text)">
+          <button class="btn primary" type="submit">Issue &amp; email</button>
+        </form>
+        <p id="issue-result" style="margin-top:12px;font-size:13px;color:var(--muted)" hidden></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+const el = (id) => document.getElementById(id);
+const money = (minor, currency) =>
+  new Intl.NumberFormat(undefined, { style: "currency", currency: currency || "USD" })
+    .format((minor || 0) / 100);
+
+function bars(target, series) {
+  const peak = Math.max(1, ...series.map((d) => d.count));
+  target.innerHTML = series.map((d) => `
+    <div class="bar" style="height:${Math.max(2, (d.count / peak) * 100)}%" title="${d.day}: ${d.count}">
+      <span>${d.day.slice(8)}</span>
+    </div>`).join("");
+}
+
+function licenceRows(licences) {
+  return licences.map((l) => `
+    <tr>
+      <td class="key">${l.key.slice(0, 30)}…</td>
+      <td>${l.kind}</td>
+      <td><span class="pill ${l.status}">${l.status}</span></td>
+      <td>${l.status === "active" ? `<button class="btn ghost" style="padding:5px 11px;font-size:12px"
+            onclick="revoke('${l.id}')">Revoke</button>` : ""}</td>
+    </tr>`).join("");
+}
+
+async function revoke(id) {
+  if (!confirm("Revoke this licence?\n\nIt will be marked revoked here, but a key already on someone's Mac keeps working — licences verify offline.")) return;
+  await fetch("/api/admin/licence/revoke", {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id }),
+  });
+  find();
+  load();
+}
+
+async function load() {
+  const who = await (await fetch("/api/admin/whoami")).json();
+  if (!who.admin) { el("denied").hidden = false; return; }
+  el("who").textContent = who.email;
+  el("panel").hidden = false;
+
+  const s = await (await fetch("/api/admin/stats")).json();
+  const revenue = s.revenue.length
+    ? s.revenue.map((r) => money(r.total, r.currency)).join(" · ") : money(0, "USD");
+
+  el("stats").innerHTML = `
+    <div class="stat"><div class="n">${s.totals.active}</div><div class="k">Active licences</div></div>
+    <div class="stat"><div class="n">${revenue}</div><div class="k">Gross</div></div>
+    <div class="stat"><div class="n">${s.totals.downloads}</div><div class="k">Downloads</div></div>
+    <div class="stat"><div class="n">${s.totals.customers}</div><div class="k">Customers</div></div>
+    <div class="stat"><div class="n">${s.totals.refunded + s.totals.revoked}</div><div class="k">Refunded / revoked</div></div>`;
+
+  bars(el("downloads"), s.downloads);
+  bars(el("purchases"), s.purchases);
+
+  el("recent").innerHTML = `
+    <tr><th>When</th><th>Email</th><th>Kind</th><th>Status</th><th>Amount</th></tr>` +
+    (s.recent.length ? s.recent.map((r) => `
+      <tr>
+        <td>${new Date(r.created_at * 1000).toLocaleDateString()}</td>
+        <td>${r.email}</td>
+        <td>${r.kind}</td>
+        <td><span class="pill ${r.status}">${r.status}</span></td>
+        <td>${r.amount ? money(r.amount, r.currency) : "—"}</td>
+      </tr>`).join("") : `<tr><td colspan="5">Nothing yet.</td></tr>`);
+}
+
+async function find() {
+  const query = el("q").value.trim();
+  if (!query) { el("results").innerHTML = ""; return; }
+  const { customers } = await (await fetch(`/api/admin/customers?q=${encodeURIComponent(query)}`)).json();
+  el("results").innerHTML = customers.length ? customers.map((c) => `
+    <div class="card" style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <h3>${c.email}</h3>
+        <span class="tag ${c.active ? "free" : ""}">${c.active} active</span>
+      </div>
+      <table style="margin-top:12px">${licenceRows(c.licences)}</table>
+    </div>`).join("") : `<p style="color:var(--faint)">No one matches that.</p>`;
+}
+
+let timer;
+el("q").addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(find, 250); });
+
+el("issue").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const result = el("issue-result");
+  result.hidden = false;
+  result.textContent = "Issuing…";
+  const response = await fetch("/api/admin/licence/issue", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ email: el("issue-email").value, note: el("issue-note").value }),
+  });
+  const body = await response.json();
+  result.textContent = response.ok ? `Issued and emailed: ${body.key.slice(0, 34)}…` : body.error;
+  load();
+});
+
+load();
+</script>
+</body>
+</html>
