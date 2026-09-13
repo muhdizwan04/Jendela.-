@@ -50,6 +50,10 @@ final class ScreenshotRenderer: XCTestCase {
         state.notchExpanded = true
         state.notchHovered = true
         state.clipboardItems = [
+            ClipboardEntry(kind: .text, title: "compact row check one", subtitle: "Copied text",
+                           data: nil, pasteboardType: .string),
+            ClipboardEntry(kind: .text, title: "compact row check two", subtitle: "Copied text",
+                           data: nil, pasteboardType: .string),
             ClipboardEntry(kind: .text, title: "https://jendela.app", subtitle: "Copied text",
                            data: nil, pasteboardType: .string),
             ClipboardEntry(kind: .file, title: "contract-final.pdf", subtitle: "Copied file",

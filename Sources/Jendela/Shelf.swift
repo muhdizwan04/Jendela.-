@@ -85,9 +85,13 @@ struct ShelfNotchSection: View {
             if state.shelfItems.isEmpty {
                 dropWell
             } else {
-                VStack(spacing: 6) {
-                    ForEach(state.shelfItems) { item in
-                        row(item)
+                // The card stops growing after a few files; the rest were
+                // drawn past the bottom of the hub.
+                ScrollView {
+                    VStack(spacing: 6) {
+                        ForEach(state.shelfItems) { item in
+                            row(item)
+                        }
                     }
                 }
                 dropWell.frame(height: 44)

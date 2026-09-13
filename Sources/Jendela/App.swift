@@ -163,7 +163,7 @@ final class JendelaState: ObservableObject {
         func contentHeight(clipboardCount: Int, shelfCount: Int = 0) -> CGFloat {
             switch self {
             case .home: 157
-            case .clipboard: 98 + 50 * CGFloat(min(max(clipboardCount, 1), 5))
+            case .clipboard: 92 + 39 * CGFloat(min(max(clipboardCount, 1), 6))
             case .music: 141
             case .sound: 190
             case .discord: 214
@@ -3005,7 +3005,7 @@ struct NotchPanelView: View {
             } label: {
                 Image(systemName: state.notchPinned ? "pin.fill" : "pin")
                     .font(.system(size: 10, weight: .semibold))
-                    .frame(width: 26, height: 26)
+                    .frame(width: 22, height: 22)
                     .background(state.notchPinned ? state.appliedTheme.accentColor.opacity(0.22) : .white.opacity(0.07), in: Circle())
             }
             .buttonStyle(.plain)
@@ -3308,11 +3308,17 @@ struct ClipboardNotchSection: View {
             if state.visibleClipboardItems.isEmpty {
                 emptyState
             } else {
-                VStack(spacing: 6) {
-                    ForEach(state.visibleClipboardItems) { item in
-                        row(for: item)
+                // The card grows to a handful of rows and then stops, so
+                // without this everything past that was drawn over the tab bar
+                // and could not be reached.
+                ScrollView {
+                    VStack(spacing: 5) {
+                        ForEach(state.visibleClipboardItems) { item in
+                            row(for: item)
+                        }
                     }
                 }
+                .scrollIndicators(.automatic)
             }
         }
         .sheet(item: $preview) { item in
@@ -3391,19 +3397,19 @@ struct ClipboardNotchSection: View {
         let hovered = hoveredID == item.id
         let copied = copiedID == item.id
 
-        return HStack(spacing: 10) {
+        return HStack(spacing: 8) {
             ClipboardEntryThumbnail(entry: item, accent: state.appliedTheme.accentColor)
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 1) {
                 Text(item.displayTitle)
-                    .font(.system(size: 12))
+                    .font(.system(size: 11.5))
                     .lineLimit(1)
                 HStack(spacing: 5) {
                     Text(item.kindLabel)
-                        .font(.system(size: 8, weight: .bold))
+                        .font(.system(size: 7.5, weight: .bold))
                         .tracking(0.4)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 1.5)
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 1)
                         .background(.white.opacity(0.1), in: Capsule())
                     Text(item.subtitle)
                         .font(.system(size: 9))
@@ -3432,13 +3438,13 @@ struct ClipboardNotchSection: View {
                 .help(item.pinned ? "Unpin" : "Pin")
             }
         }
-        .padding(.horizontal, 10)
-        .frame(height: 44)
+        .padding(.horizontal, 9)
+        .frame(height: 34)
         .background(
             hovered ? .white.opacity(0.12) : .white.opacity(0.055),
-            in: RoundedRectangle(cornerRadius: 10)
+            in: RoundedRectangle(cornerRadius: 9)
         )
-        .contentShape(RoundedRectangle(cornerRadius: 10))
+        .contentShape(RoundedRectangle(cornerRadius: 9))
         .onHover { hoveredID = $0 ? item.id : nil }
         .onTapGesture {
             state.pasteClipboard(item)

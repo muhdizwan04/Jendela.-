@@ -6,10 +6,14 @@ struct DayNotchSection: View {
     @ObservedObject var state: JendelaState
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            meetings
-            Divider().overlay(.white.opacity(0.08))
-            batteries
+        // A busy day and several batteries together run past the card, which
+        // is a fixed height.
+        ScrollView {
+            VStack(alignment: .leading, spacing: 10) {
+                meetings
+                Divider().overlay(.white.opacity(0.08))
+                batteries
+            }
         }
         .onAppear {
             state.batteries.refresh()
