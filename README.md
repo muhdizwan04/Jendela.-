@@ -176,6 +176,31 @@ verifies with signs the key that is issued.
 the server issued and checks the app accepts it — if the two ever disagreed
 on key format, every customer would pay and then be refused.
 
+### The signing key
+
+`jendela-licence-private.key` signs every licence. The app carries only the
+matching public key, so it can verify a licence with no network — which is
+what makes a lifetime licence honest, and what makes this one file the most
+important thing in the repository.
+
+It is gitignored and `chmod 600`. Two things follow from that:
+
+- **Anyone holding it can mint unlimited licences.** Keep it out of
+  backups that sync somewhere shared, screenshots and pasted logs.
+- **Losing it strands every customer.** The public key is compiled into
+  every copy of the app already installed. A new signing key means those
+  builds reject every licence issued afterwards, so the only way back is
+  shipping an update and reissuing to everyone. Keep an offline copy
+  somewhere you will still have in five years.
+
+Issue a key by hand with:
+
+    swift Support/licence_tool.swift sign jendela-licence-private.key <email> [days]
+
+Omit the days for a lifetime licence. The app reads a key from the keychain,
+falling back to `~/Library/Application Support/Jendela/.licence-key`, so a
+key can be installed without going through the UI.
+
 ### Dashboard
 
 `/admin.html`, restricted to the single address in `ADMIN_EMAIL`, signing
