@@ -559,7 +559,7 @@ final class JendelaState: ObservableObject {
             discordOverlayFrame = NSRect(
                 x: s.discordOverlayFrame[0], y: s.discordOverlayFrame[1],
                 width: max(s.discordOverlayFrame[2], 210), height: max(s.discordOverlayFrame[3], 132)
-            )
+            ).nudgedOntoScreen()
         }
         if !s.notes.isEmpty {
             notes = s.notes
@@ -1036,15 +1036,27 @@ final class JendelaState: ObservableObject {
 
     // MARK: - Discord
 
+    /// Discord ships four builds under separate bundle ids. Only the stable one
+    /// was recognised, so anyone on PTB or Canary saw "Discord is not running"
+    /// with it open in front of them, and the button did nothing.
+    static let discordBundleIDs = [
+        "com.hnc.Discord", "com.hnc.DiscordPTB",
+        "com.hnc.DiscordCanary", "com.hnc.DiscordDevelopment"
+    ]
+
     func openDiscord() {
         if let app = NSWorkspace.shared.runningApplications.first(where: {
-            $0.bundleIdentifier == "com.hnc.Discord"
+            guard let id = $0.bundleIdentifier else { return false }
+            return Self.discordBundleIDs.contains(id)
         }) {
             app.activate()
             return
         }
-        if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.hnc.Discord") {
-            NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
+        for id in Self.discordBundleIDs {
+            if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id) {
+                NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
+                return
+            }
         }
     }
 
@@ -1058,7 +1070,8 @@ final class JendelaState: ObservableObject {
 
     private func refreshDiscordPresence() {
         discordRunning = NSWorkspace.shared.runningApplications.contains {
-            $0.bundleIdentifier == "com.hnc.Discord"
+            guard let id = $0.bundleIdentifier else { return false }
+            return Self.discordBundleIDs.contains(id)
         }
     }
 

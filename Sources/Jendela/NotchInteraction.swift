@@ -271,3 +271,37 @@ final class NotchPanelCoordinator {
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
     }
 }
+
+
+extension NSRect {
+    /// Brings a saved window position back onto an attached display.
+    ///
+    /// Frames are restored from the settings file, and `InteractiveNotchPanel`
+    /// deliberately disables AppKit's own constraining so the hub can sit in
+    /// the menu bar. Anything else built on that panel inherits it, so a window
+    /// last positioned on a display that is no longer attached came back
+    /// off-screen — reported visible, drawn nowhere, and unreachable without
+    /// editing settings by hand.
+    ///
+    /// A window only needs enough of itself on screen to be grabbed, so a
+    /// deliberately half-off-screen position is left alone.
+    func nudgedOntoScreen(minimumVisible: CGSize = CGSize(width: 120, height: 60)) -> NSRect {
+        let screens = NSScreen.screens
+        guard !screens.isEmpty else { return self }
+
+        let reachable = screens.contains { screen in
+            let overlap = screen.visibleFrame.intersection(self)
+            return overlap.width >= Swift.min(minimumVisible.width, width)
+                && overlap.height >= Swift.min(minimumVisible.height, height)
+        }
+        if reachable { return self }
+
+        let target = (NSScreen.main ?? screens[0]).visibleFrame
+        var rect = self
+        rect.size.width = Swift.min(width, target.width)
+        rect.size.height = Swift.min(height, target.height)
+        rect.origin.x = (target.midX - rect.width / 2).rounded()
+        rect.origin.y = (target.midY - rect.height / 2).rounded()
+        return rect
+    }
+}

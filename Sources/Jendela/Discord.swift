@@ -46,6 +46,20 @@ final class DiscordOverlayCoordinator {
             }
             .store(in: &cancellables)
 
+        // Undocking removes the display the overlay may be sitting on, and this
+        // panel does not let AppKit constrain it.
+        observers.append(NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                let corrected = self.panel.frame.nudgedOntoScreen()
+                guard corrected != self.panel.frame else { return }
+                self.panel.setFrame(corrected, display: true)
+                self.state.discordOverlayFrame = corrected
+            }
+        })
+
         for name in [NSWindow.didMoveNotification, NSWindow.didEndLiveResizeNotification] {
             observers.append(NotificationCenter.default.addObserver(
                 forName: name, object: panel, queue: .main

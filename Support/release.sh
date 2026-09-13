@@ -123,7 +123,15 @@ ok "Entitlements clean"
 # ------------------------------------------------------------------ packaging
 info "Packaging the disk image"
 STAGE=$(mktemp -d)
-cp -R "$APP" "$STAGE/"
+# ditto, not cp: a plain copy carries extended attributes into the bundle, and
+# codesign rejects the result with "resource fork, Finder information, or
+# similar detritus not allowed" — which surfaces as a notarisation failure
+# after the upload rather than here.
+ditto "$APP" "$STAGE/$(basename "$APP")"
+
+# Signing is verified on the copy that actually ships, not the build output.
+codesign --verify --deep --strict "$STAGE/$(basename "$APP")" \
+  || fail "the staged app failed signature verification"
 ln -s /Applications "$STAGE/Applications"
 DMG="$DIST/Jendela-$VERSION.dmg"
 hdiutil create -volname "Jendela." -srcfolder "$STAGE" -ov -format UDZO "$DMG" >/dev/null

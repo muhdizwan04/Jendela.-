@@ -14,6 +14,7 @@ struct NoteRecord: Identifiable, Codable, Equatable {
     var rect: NSRect {
         frame.count == 4
             ? NSRect(x: frame[0], y: frame[1], width: max(frame[2], 180), height: max(frame[3], 120))
+                .nudgedOntoScreen()
             : NoteRecord.defaultRect
     }
 
