@@ -80,8 +80,8 @@ final class QuickChatClient: ObservableObject {
 
     private var directory: URL {
         if let storageDirectory { return storageDirectory }
-        return FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Jendela/QuickChat", isDirectory: true)
+        return SupportDirectory.root
+            .appendingPathComponent("QuickChat", isDirectory: true)
     }
 
     func activate() {

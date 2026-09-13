@@ -248,7 +248,17 @@ final class JendelaState: ObservableObject {
     }
     @Published var selectedSection: NotchSection = .home
     @Published var quickNoteText = ""
-    @Published var clipboardItems: [ClipboardEntry] = []
+    @Published var clipboardItems: [ClipboardEntry] = [] {
+        didSet { if loaded { ClipboardStore.save(clipboardItems) } }
+    }
+    /// How many unpinned items to keep. Pinned entries are never evicted.
+    @Published var clipboardLimit = 100
+    @Published var launchAtLogin = false {
+        didSet {
+            guard loaded, launchAtLogin != LoginItem.isEnabled else { return }
+            if !LoginItem.set(launchAtLogin) { launchAtLogin = LoginItem.isEnabled }
+        }
+    }
     @Published var clipboardSearch = ""
     @Published var clipboardAutoCapture = true
     /// Password managers flag their pasteboard items as concealed; honouring
@@ -334,6 +344,16 @@ final class JendelaState: ObservableObject {
             quickNoteText = NoteStore.load(first.id).string
         }
 
+        // Loaded asynchronously: a Keychain read during init can block the
+        // main thread before the app has drawn anything.
+        ClipboardStore.loadAsync { [weak self] restored in
+            guard let self, self.clipboardItems.isEmpty else { return }
+            self.clipboardItems = restored
+        }
+        // Trust the system over the settings file: the user may have switched
+        // it off in System Settings since last launch.
+        launchAtLogin = LoginItem.isEnabled
+
         lastSavedSettings = snapshot()
         loaded = true
 
@@ -397,6 +417,8 @@ final class JendelaState: ObservableObject {
         showTrackInCompact = s.showTrackInCompact
         showMusicIndicator = s.showMusicIndicator
         clipboardAutoCapture = s.clipboardAutoCapture
+        clipboardLimit = s.clipboardLimit
+        launchAtLogin = s.launchAtLogin
         skipConcealedClipboard = s.skipConcealedClipboard
         musicProvider = MusicProvider(rawValue: s.musicProvider) ?? .appleMusic
         discordPipEnabled = s.discordPipEnabled
@@ -445,6 +467,8 @@ final class JendelaState: ObservableObject {
             showMusicIndicator: showMusicIndicator,
             clipboardAutoCapture: clipboardAutoCapture,
             skipConcealedClipboard: skipConcealedClipboard,
+            clipboardLimit: clipboardLimit,
+            launchAtLogin: launchAtLogin,
             musicProvider: musicProvider.rawValue,
             discordPipEnabled: discordPipEnabled,
             batterySaverMode: batterySaverMode.rawValue,
@@ -549,7 +573,7 @@ final class JendelaState: ObservableObject {
     func publishWidgetSnapshot() {
         let payload = WidgetSnapshot(
             note: quickNoteText,
-            clips: clipboardItems.prefix(5).map {
+            clips: clipboardItems.prefix(8).map {
                 WidgetSnapshot.Clip(
                     id: $0.id.uuidString,
                     title: $0.displayTitle,
@@ -933,14 +957,15 @@ final class JendelaState: ObservableObject {
         return true
     }
 
-    /// Pinned entries are never evicted by the five-item cap.
+    /// Pinned entries are never evicted.
     private func trimClipboard() {
-        guard clipboardItems.filter({ !$0.pinned }).count > 5 else { return }
+        let cap = max(5, min(clipboardLimit, ClipboardStore.maxEntries))
+        guard clipboardItems.filter({ !$0.pinned }).count > cap else { return }
         var kept: [ClipboardEntry] = []
         var unpinned = 0
         for item in clipboardItems {
             if item.pinned { kept.append(item); continue }
-            if unpinned < 5 { kept.append(item); unpinned += 1 }
+            if unpinned < cap { kept.append(item); unpinned += 1 }
         }
         clipboardItems = kept
     }
@@ -966,6 +991,12 @@ final class JendelaState: ObservableObject {
 
     func clearClipboard() {
         clipboardItems.removeAll { !$0.pinned }
+    }
+
+    /// Removes the history and the file behind it.
+    func wipeClipboardHistory() {
+        clipboardItems = []
+        ClipboardStore.wipe()
     }
 
     // MARK: - Music
@@ -2270,6 +2301,29 @@ struct SettingsStudioView: View {
                     }
                     .labelsHidden()
                     .frame(width: 150)
+                }
+                SettingsRow(
+                    title: "Open at login",
+                    detail: LoginItem.deniedByUser
+                        ? "Turned off in System Settings › Login Items"
+                        : "Start Jendela. automatically",
+                    symbol: "power"
+                ) {
+                    Toggle("", isOn: $state.launchAtLogin).labelsHidden()
+                }
+                SettingsRow(
+                    title: "Clipboard history",
+                    detail: "Kept encrypted on this Mac · \(state.clipboardItems.count) stored",
+                    symbol: "clock.arrow.circlepath"
+                ) {
+                    HStack(spacing: 8) {
+                        Picker("", selection: $state.clipboardLimit) {
+                            ForEach([25, 50, 100, 200], id: \.self) { Text("\($0)").tag($0) }
+                        }
+                        .labelsHidden()
+                        .frame(width: 76)
+                        Button("Erase") { state.wipeClipboardHistory() }
+                    }
                 }
                 SettingsRow(title: "Show notch handle", detail: "Draw a small tab under the notch instead of staying invisible", symbol: "rectangle.topthird.inset.filled") {
                     Toggle("", isOn: $state.showNotchHandle).labelsHidden()

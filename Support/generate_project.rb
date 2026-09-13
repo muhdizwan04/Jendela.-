@@ -38,9 +38,9 @@ app_group = project.new_group('Jendela',        'Sources/Jendela')
 ext_group = project.new_group('JendelaWidgets', 'JendelaWidgets')
 support   = project.new_group('Support',          'Support')
 
-# `WidgetSnapshot.swift` lives with the app but is compiled into both
-# processes, so the widget can decode what the app writes.
-SHARED = 'Sources/Jendela/WidgetSnapshot.swift'
+# These live with the app but are compiled into both processes, so the widget
+# can decode what the app writes and resolve the same support directory.
+SHARED = ['WidgetSnapshot.swift', 'SupportDirectory.swift']
 app_sources = Dir[File.join(ROOT, 'Sources/Jendela/*.swift')].sort
 ext_sources = Dir[File.join(ROOT, 'JendelaWidgets/*.swift')].sort
 
@@ -56,10 +56,10 @@ app.build_configurations.each do |c|
     'ENABLE_APP_SANDBOX'        => 'NO'
   )
 end
-shared_ref = nil
+shared_refs = []
 app_sources.each do |f|
   ref = app_group.new_file(f)
-  shared_ref = ref if f.end_with?('WidgetSnapshot.swift')
+  shared_refs << ref if SHARED.any? { |name| f.end_with?(name) }
   app.add_file_references([ref])
 end
 
@@ -77,7 +77,7 @@ ext.build_configurations.each do |c|
   )
 end
 ext_sources.each { |f| ext.add_file_references([ext_group.new_file(f)]) }
-ext.add_file_references([shared_ref]) if shared_ref
+ext.add_file_references(shared_refs)
 
 ext.add_system_framework('WidgetKit')
 ext.add_system_framework('SwiftUI')
@@ -99,4 +99,4 @@ support.new_file(File.join(ROOT, 'JendelaWidgets/Info.plist'))
 project.save
 puts "generated #{path}"
 puts "  app target sources:    #{app_sources.size}"
-puts "  widget target sources: #{ext_sources.size + 1}"
+puts "  widget target sources: #{ext_sources.size + shared_refs.size}"

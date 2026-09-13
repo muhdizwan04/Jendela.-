@@ -27,8 +27,8 @@ enum WallpaperRenderer {
     struct RGB: Sendable { var r, g, b: Double }
 
     private static var cacheDirectory: URL {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Jendela/Wallpapers", isDirectory: true)
+        let base = SupportDirectory.root
+            .appendingPathComponent("Wallpapers", isDirectory: true)
         try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
         return base
     }

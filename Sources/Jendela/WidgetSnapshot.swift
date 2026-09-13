@@ -125,8 +125,7 @@ enum SharedStore {
         if let group = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroup) {
             return group
         }
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Jendela", isDirectory: true)
+        let base = SupportDirectory.root
         try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
         return base
     }
