@@ -121,13 +121,25 @@ Two things are load-bearing and worth knowing before changing them:
 nothing in it is hand-maintained, so re-run that script after adding a source
 file. `swift build` still compiles the app on its own, without widgets.
 
-## Website
+## Running it
 
-`web/` is the landing page: plain HTML and CSS, no build step and no
-third-party scripts, so it can be hosted anywhere and still works with
-JavaScript disabled apart from the version line.
+Three pieces, each its own npm project. There is nothing to install: the dev
+server is a single file using only Node built-ins, so a fresh checkout runs
+immediately and there is no lockfile to keep current.
 
-    ./web/serve.sh        # preview at localhost:8080
+    npm run dev              # all three together, labelled, one Ctrl-C stops them
+
+    cd web    && npm run dev # landing page      → localhost:3000
+    cd admin  && npm run dev # dashboard         → localhost:3001
+    cd server && npm run dev # API               → localhost:8787
+
+The two front ends proxy `/api` to the server, so the browser sees a single
+origin. Without that the session cookie would not be sent and every signed-in
+page would look signed out in development while working in production — a
+miserable class of bug to chase.
+
+`shared/` holds the stylesheet and the icon, served by both front ends and by
+the API in production, so there is one copy to change.
 
 The download button and version line read `appcast.json` — the same file
 `Support/release.sh` writes and the app checks for updates — so the site

@@ -1,0 +1,11 @@
+{
+  "name": "jendela-admin",
+  "private": true,
+  "version": "0.2.0",
+  "description": "Jendela. admin dashboard",
+  "type": "module",
+  "scripts": {
+    "dev": "PORT=3001 node ../tools/devserver.mjs .",
+    "start": "PORT=3001 node ../tools/devserver.mjs ."
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "name": "jendela-server",
+  "private": true,
+  "version": "0.2.0",
+  "description": "Jendela. licence and account API",
+  "type": "module",
+  "main": "src/server.mjs",
+  "scripts": {
+    "dev": "./run.sh",
+    "start": "node src/server.mjs",
+    "test": "node test.mjs"
+  }
+}

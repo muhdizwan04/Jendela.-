@@ -9,7 +9,14 @@ import { isAdmin, stats, search, issue, revoke } from "./admin.mjs";
 
 const PORT = Number(process.env.PORT || 8787);
 const SITE = process.env.SITE_URL || `http://localhost:${PORT}`;
-const WEB_ROOT = process.env.WEB_ROOT || path.resolve("../web");
+// In production one process serves the site, the dashboard and the shared
+// assets, so everything is same-origin and the session cookie just works.
+const ROOTS = [
+  process.env.WEB_ROOT || path.resolve("../web"),
+  process.env.ADMIN_ROOT || path.resolve("../admin"),
+  process.env.SHARED_ROOT || path.resolve("../shared"),
+];
+const WEB_ROOT = ROOTS[0];
 const db = open();
 
 const json = (res, code, body) => {
@@ -247,11 +254,23 @@ const routes = {
   },
 };
 
-/// Static files for the site, so one process serves everything in development.
+/// Static files, searched across the site, the dashboard and shared assets.
 function serveStatic(req, res, url) {
-  const name = url.pathname === "/" ? "/index.html" : url.pathname;
-  const file = path.join(WEB_ROOT, path.normalize(name).replace(/^(\.\.[/\\])+/, ""));
-  if (!file.startsWith(path.resolve(WEB_ROOT)) || !fs.existsSync(file)) {
+  let name = url.pathname === "/" ? "/index.html" : url.pathname;
+  // /admin and /admin/ both mean the dashboard's index.
+  if (name === "/admin" || name === "/admin/") name = "/index.html";
+  const clean = path.normalize(name).replace(/^(\.\.[/\\])+/, "");
+
+  let file = null;
+  for (const root of ROOTS) {
+    const candidate = path.join(root, clean);
+    if (candidate.startsWith(path.resolve(root)) && fs.existsSync(candidate)
+        && fs.statSync(candidate).isFile()) {
+      file = candidate;
+      break;
+    }
+  }
+  if (!file) {
     res.writeHead(404, { "content-type": "text/plain" });
     return res.end("Not found");
   }

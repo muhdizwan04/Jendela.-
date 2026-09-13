@@ -1,0 +1,11 @@
+{
+  "name": "jendela-web",
+  "private": true,
+  "version": "0.2.0",
+  "description": "Jendela. landing page",
+  "type": "module",
+  "scripts": {
+    "dev": "PORT=3000 node ../tools/devserver.mjs .",
+    "start": "PORT=3000 node ../tools/devserver.mjs ."
+  }
+}

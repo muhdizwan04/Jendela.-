@@ -1,0 +1,12 @@
+{
+  "name": "jendela",
+  "private": true,
+  "version": "0.2.0",
+  "description": "Jendela. — a macOS notch companion, its site, and its licence server",
+  "type": "module",
+  "scripts": {
+    "dev": "node tools/dev-all.mjs",
+    "test": "cd server && node test.mjs"
+  },
+  "workspaces": ["web", "admin", "server"]
+}
