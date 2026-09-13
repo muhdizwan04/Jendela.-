@@ -1,3 +1,4 @@
+import SwiftUI
 import XCTest
 @testable import Jendela
 
@@ -58,4 +59,69 @@ final class SectionOrderTests: XCTestCase {
         state.moveSection(.day, to: .clipboard)
         XCTAssertEqual(state.visibleSections, [.home, .day, .clipboard])
     }
+}
+
+/// The drag itself is wired through `JendelaState.draggingSection`.
+///
+/// It first shipped as a `@State` inside each tile, so the tile being dragged
+/// set its own copy and the tile being dropped on read its own — always nil.
+/// `dropEntered` returned early every time and reordering did nothing at all,
+/// which is exactly what a user saw.
+@MainActor
+final class SectionDragTests: XCTestCase {
+    func testDropOnAnotherTabReordersThroughSharedState() {
+        let state = JendelaState()
+        state.enabledSections = [.home, .clipboard, .music, .sound]
+
+        // What the tile's onDrag does.
+        state.draggingSection = .sound
+        // What the drop target does as the pointer passes over it.
+        SectionDropDelegate(state: state, target: .clipboard).reorder()
+
+        XCTAssertEqual(state.visibleSections, [.home, .sound, .clipboard, .music],
+                       "the drag did not reach the drop target")
+    }
+
+    func testDroppingOnItselfDoesNothing() {
+        let state = JendelaState()
+        state.enabledSections = [.home, .clipboard, .music]
+        state.draggingSection = .clipboard
+        SectionDropDelegate(state: state, target: .clipboard).reorder()
+        XCTAssertEqual(state.visibleSections, [.home, .clipboard, .music])
+    }
+
+    func testNothingHappensWithoutADrag() {
+        let state = JendelaState()
+        state.enabledSections = [.home, .clipboard, .music]
+        state.draggingSection = nil
+        SectionDropDelegate(state: state, target: .home).reorder()
+        XCTAssertEqual(state.visibleSections, [.home, .clipboard, .music])
+    }
+
+    func testNudgeMovesOnePlace() {
+        let state = JendelaState()
+        state.enabledSections = [.home, .clipboard, .music]
+
+        XCTAssertTrue(state.nudgeSection(.music, by: -1))
+        XCTAssertEqual(state.visibleSections, [.home, .music, .clipboard])
+
+        XCTAssertTrue(state.nudgeSection(.music, by: 1))
+        XCTAssertEqual(state.visibleSections, [.home, .clipboard, .music])
+    }
+
+    func testNudgeStopsAtTheEnds() {
+        let state = JendelaState()
+        state.enabledSections = [.home, .clipboard]
+        XCTAssertFalse(state.nudgeSection(.home, by: -1), "moved past the start")
+        XCTAssertFalse(state.nudgeSection(.clipboard, by: 1), "moved past the end")
+        XCTAssertEqual(state.visibleSections, [.home, .clipboard])
+    }
+
+    func testNudgeIgnoresAHiddenTab() {
+        let state = JendelaState()
+        state.enabledSections = [.home, .clipboard]
+        XCTAssertFalse(state.nudgeSection(.day, by: -1))
+        XCTAssertEqual(state.visibleSections, [.home, .clipboard])
+    }
+
 }

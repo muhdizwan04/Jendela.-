@@ -180,6 +180,10 @@ final class JendelaState: ObservableObject {
     @Published var notchHovered = false
     /// Which sections appear in the hub. Empty means "all".
     @Published var enabledSections: [NotchSection] = NotchSection.allCases
+    /// The tab being dragged in the settings grid. Lives here because each tile
+    /// is its own view: a `@State` in one cannot be read by the drop target,
+    /// which is why dragging appeared to do nothing at all.
+    @Published var draggingSection: NotchSection?
     var dismissNotch: (() -> Void)?
     /// Raises the desktop note above other windows; it drops back to desktop
     /// level on its own once it loses focus.
@@ -833,6 +837,19 @@ final class JendelaState: ObservableObject {
         }
         enabledSections = next
         if !next.contains(selectedSection) { selectedSection = next[0] }
+    }
+
+    /// Moves a tab one place along. The grid wraps, so "left" and "right" mean
+    /// earlier and later in the order rather than a direction on screen.
+    @discardableResult
+    func nudgeSection(_ section: NotchSection, by offset: Int) -> Bool {
+        var next = visibleSections
+        guard let from = next.firstIndex(of: section) else { return false }
+        let to = from + offset
+        guard next.indices.contains(to) else { return false }
+        next.swapAt(from, to)
+        enabledSections = next
+        return true
     }
 
     /// Moves a tab so it sits where `target` is. Only enabled tabs have an
@@ -2357,7 +2374,6 @@ struct InstructionCard: View {
 struct SectionToggle: View {
     @ObservedObject var state: JendelaState
     let section: JendelaState.NotchSection
-    @State private var dragging: JendelaState.NotchSection?
 
     private var enabled: Bool { state.visibleSections.contains(section) }
     /// The last remaining tab cannot be switched off, so it is shown as locked
@@ -2405,12 +2421,27 @@ struct SectionToggle: View {
         .disabled(locked)
         .help(locked
               ? "The hub needs at least one tab"
-              : (enabled ? "Drag to reorder · click to hide from the hub" : "Show in the hub"))
+              : (enabled ? "Drag or right-click to reorder · click to hide from the hub" : "Show in the hub"))
         .onDrag {
-            dragging = section
+            state.draggingSection = section
             return NSItemProvider(object: section.rawValue as NSString)
         }
-        .onDrop(of: [.text], delegate: SectionDropDelegate(state: state, target: section, dragging: $dragging))
+        .onDrop(of: [.text], delegate: SectionDropDelegate(state: state, target: section))
+        // Drag-and-drop inside a grid of buttons is easy to miss, so the same
+        // move is available without it.
+        .contextMenu {
+            if enabled {
+                Button("Move earlier") { state.nudgeSection(section, by: -1) }
+                    .disabled(state.visibleSections.first == section)
+                Button("Move later") { state.nudgeSection(section, by: 1) }
+                    .disabled(state.visibleSections.last == section)
+                Divider()
+                Button("Hide from the hub") { state.setSection(section, enabled: false) }
+                    .disabled(locked)
+            } else {
+                Button("Show in the hub") { state.setSection(section, enabled: true) }
+            }
+        }
     }
 }
 
@@ -2419,15 +2450,18 @@ struct SectionToggle: View {
 struct SectionDropDelegate: DropDelegate {
     let state: JendelaState
     let target: JendelaState.NotchSection
-    @Binding var dragging: JendelaState.NotchSection?
 
-    func dropEntered(info: DropInfo) {
-        guard let dragging, dragging != target else { return }
+    func dropEntered(info: DropInfo) { reorder() }
+
+    /// Split out from `dropEntered` because `DropInfo` cannot be constructed in
+    /// a test, and this is the part worth testing.
+    func reorder() {
+        guard let dragging = state.draggingSection, dragging != target else { return }
         state.moveSection(dragging, to: target)
     }
 
     func performDrop(info: DropInfo) -> Bool {
-        dragging = nil
+        state.draggingSection = nil
         return true
     }
 
@@ -2465,7 +2499,7 @@ struct NotchStudioView: View {
                                 SectionToggle(state: state, section: section)
                             }
                         }
-                        Text("Drag a tab to change where it sits in the hub. The hub keeps at least one tab, and resizes to whichever one is open.")
+                        Text("Drag a tab, or right-click it, to change where it sits in the hub. The hub keeps at least one tab, and resizes to whichever one is open.")
                             .font(.caption2)
                             .foregroundStyle(.white.opacity(0.4))
                     }
