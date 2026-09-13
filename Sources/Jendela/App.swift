@@ -553,6 +553,10 @@ final class JendelaState: ObservableObject {
         originalWallpapers = s.originalWallpapers
     }
 
+    /// Exposed for the walkthrough, which checks every field survives a
+    /// round trip rather than trusting that new settings were wired up.
+    func settingsSnapshotForTesting() -> JendelaSettings { snapshot() }
+
     private func snapshot() -> JendelaSettings {
         JendelaSettings(
             quickNoteText: quickNoteText,

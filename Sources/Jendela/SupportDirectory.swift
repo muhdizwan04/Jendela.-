@@ -1,4 +1,5 @@
 import Foundation
+import ObjectiveC
 
 /// The one place the app keeps its files, and the one-time move from the old
 /// name.
@@ -11,6 +12,22 @@ enum SupportDirectory {
     private static let previousNames = ["WidgetMac"]
 
     static let root: URL = {
+        // Tests and diagnostics point this elsewhere so a run can never touch
+        // real notes, clipboard history or sign-ins.
+        // A test run must never touch real notes, clipboard history or
+        // sign-ins, and relying on the caller to remember an environment
+        // variable is one forgotten flag away from data loss.
+        if NSClassFromString("XCTestCase") != nil {
+            let url = FileManager.default.temporaryDirectory
+                .appendingPathComponent("jendela-tests", isDirectory: true)
+            try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+            return url
+        }
+        if let override = ProcessInfo.processInfo.environment["JENDELA_SUPPORT_DIR"] {
+            let url = URL(fileURLWithPath: override, isDirectory: true)
+            try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+            return url
+        }
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         let url = base.appendingPathComponent(currentName, isDirectory: true)
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
