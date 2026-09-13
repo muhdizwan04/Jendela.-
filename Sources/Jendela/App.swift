@@ -385,6 +385,7 @@ final class JendelaState: ObservableObject {
     let batteries = Batteries()
     let meetings = Meetings()
     let licensing = Licensing()
+    let updates = Updates()
 
     private var cancellables = Set<AnyCancellable>()
     private var focusTimer: Timer?
@@ -461,6 +462,7 @@ final class JendelaState: ObservableObject {
             batteries.objectWillChange.eraseToAnyPublisher(),
             meetings.objectWillChange.eraseToAnyPublisher(),
             licensing.objectWillChange.eraseToAnyPublisher(),
+            updates.objectWillChange.eraseToAnyPublisher(),
             nowPlaying.objectWillChange.eraseToAnyPublisher(),
             audio.objectWillChange.eraseToAnyPublisher()
         ] {
@@ -1341,6 +1343,8 @@ final class JendelaAppDelegate: NSObject, NSApplicationDelegate {
         clipboardMonitor = ClipboardMonitor(state: state)
         clipboardMonitor?.start()
         state.applyHotKeys()
+        // Once a day at most, and never on a timer.
+        state.updates.checkIfDue()
         state.openStudio = { [weak state] in
             NSApp.activate(ignoringOtherApps: true)
             NSApp.windows.first { $0.identifier?.rawValue.contains(JendelaApp.studioWindowID) == true }?
@@ -2459,6 +2463,17 @@ struct NotchStudioView: View {
 struct SettingsStudioView: View {
     @ObservedObject var state: JendelaState
 
+    private var updateDetail: String {
+        switch state.updates.state {
+        case .available(let release): "Version \(release.version) is available"
+        case .checking: "Checking…"
+        case .upToDate: "Jendela. \(Updates.currentVersion) is up to date"
+        case .failed(let message): message
+        case .idle: "Jendela. \(Updates.currentVersion)"
+        }
+    }
+
+
     var body: some View {
         VStack(spacing: 0) {
             StudioTopBar(title: "Settings", subtitle: "Privacy-first controls for a quiet background app.", state: state)
@@ -2495,6 +2510,26 @@ struct SettingsStudioView: View {
                     .labelsHidden()
                     .frame(width: 150)
                 }
+                SettingsRow(
+                    title: "Updates",
+                    detail: updateDetail,
+                    symbol: "arrow.down.circle"
+                ) {
+                    switch state.updates.state {
+                    case .available:
+                        Button("Download") { state.updates.download() }
+                            .buttonStyle(.borderedProminent)
+                            .tint(state.appliedTheme.accentColor)
+                            .controlSize(.small)
+                    case .checking:
+                        ProgressView().controlSize(.small)
+                    default:
+                        Button("Check now") { state.updates.check() }
+                            .buttonStyle(SoftButtonStyle())
+                            .frame(width: 96)
+                    }
+                }
+
                 LicenceCard(state: state)
 
                 ControlCard(
@@ -3595,6 +3630,15 @@ struct DesktopNoteView: View {
 
 struct MenuBarView: View {
     @ObservedObject var state: JendelaState
+
+    private var updateTitle: String {
+        switch state.updates.state {
+        case .available(let release): "Update to \(release.version)…"
+        case .checking: "Checking for Updates…"
+        default: "Check for Updates"
+        }
+    }
+
     let delegate: JendelaAppDelegate
     @Environment(\.openWindow) private var openWindow
 
@@ -3603,6 +3647,7 @@ struct MenuBarView: View {
         Button(state.notchExpanded ? "Collapse Notch Hub" : "Expand Notch Hub") { delegate.toggleNotch() }
         Button(state.noteVisible ? "Hide Desktop Note" : "Show Desktop Note") { delegate.toggleNote() }
         Button(state.hideNotch ? "Show the Notch" : "Hide the Notch") { state.setHideNotch(!state.hideNotch) }
+        Button(updateTitle) { state.updates.check() }
         Divider()
         Picker("Battery Saver", selection: $state.batterySaverMode) {
             ForEach(JendelaState.BatterySaverMode.allCases) { Text($0.label).tag($0) }

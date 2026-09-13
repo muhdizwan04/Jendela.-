@@ -34,3 +34,5 @@ Icon?
 .vscode/
 *.swp
 jendela-licence-private.key
+Support/release.env
+dist/

@@ -121,6 +121,22 @@ Two things are load-bearing and worth knowing before changing them:
 nothing in it is hand-maintained, so re-run that script after adding a source
 file. `swift build` still compiles the app on its own, without widgets.
 
+## Releasing
+
+`./Support/release.sh --check` reports whether a release is possible and
+changes nothing. The full run builds Release, signs with Developer ID,
+verifies the entitlements, packages a dmg, notarises, staples both the app
+and the dmg, and writes `dist/appcast.json` for the in-app update check.
+
+It refuses to build rather than producing something unshippable: an Apple
+Development certificate cannot be notarised, and `get-task-allow` in the
+signature is rejected by the notary service. Both are caught before the
+slow steps rather than after a four-minute upload.
+
+Configuration lives in `Support/release.env` (gitignored); copy
+`release.env.example`. A paid Apple Developer Program membership is
+required for the Developer ID certificate.
+
 ## Not implemented
 
 Being explicit about what is still a mock:
