@@ -36,3 +36,8 @@ Icon?
 jendela-licence-private.key
 Support/release.env
 dist/
+server/.env
+server/*.db
+server/*.db-wal
+server/*.db-shm
+node_modules/

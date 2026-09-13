@@ -138,6 +138,32 @@ To deploy: upload the contents of `web/` plus the dmg from `dist/` to any
 static host (Cloudflare Pages, Netlify, GitHub Pages). Point
 `DOWNLOAD_BASE` in `Support/release.env` at wherever the dmg lands.
 
+## Accounts and licences
+
+`server/` is a zero-dependency Node service: `node:http` and `node:sqlite`,
+no packages to audit or keep patched, and the whole database is one file.
+
+    cp server/.env.example server/.env    # fill in
+    ./server/run.sh                       # serves the site and the API together
+
+With no email provider configured the sign-in link is printed to the
+console, so the entire purchase and sign-in flow can be exercised locally
+without an account anywhere.
+
+Sign-in is a magic link — there is no password to choose, forget or leak —
+and the response is identical whether or not the address has an account, so
+the page cannot be used to discover who is a customer. Sessions are
+HttpOnly cookies.
+
+Payment webhooks are HMAC-verified; an unverified webhook would let anyone
+mint themselves a licence. Retries are idempotent on the provider's order
+id, refunds mark the licence refunded, and the same Ed25519 key the app
+verifies with signs the key that is issued.
+
+`server/test.mjs` covers that end to end, and a Swift test takes a licence
+the server issued and checks the app accepts it — if the two ever disagreed
+on key format, every customer would pay and then be refused.
+
 ## Releasing
 
 `./Support/release.sh --check` reports whether a release is possible and

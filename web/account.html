@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Your account — Jendela.</title>
+<link rel="icon" href="assets/icon.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<nav><div class="wrap">
+  <a class="brand" href="index.html"><img src="assets/icon.png" alt=""> Jendela.</a>
+  <div class="links"><a href="index.html">Home</a><a href="index.html#download">Download</a></div>
+</div></nav>
+
+<section style="border-top:none">
+  <div class="wrap" style="max-width:620px">
+
+    <div id="signed-out" hidden>
+      <div class="section-head">
+        <h2>Your licence</h2>
+        <p>Enter the email you bought with. We'll send a link — there is no password to remember.</p>
+      </div>
+      <div class="card">
+        <form id="signin-form" style="display:flex;gap:10px;flex-wrap:wrap">
+          <input id="email" type="email" required placeholder="you@example.com"
+                 style="flex:1;min-width:220px;padding:12px 14px;border-radius:10px;
+                        border:1px solid var(--line);background:#0E0D13;color:var(--text);font-size:15px">
+          <button class="btn primary" type="submit">Send link</button>
+        </form>
+        <p id="signin-note" style="margin-top:14px;color:var(--muted);font-size:14px" hidden></p>
+      </div>
+    </div>
+
+    <div id="signed-in" hidden>
+      <div class="section-head">
+        <h2>Your licence</h2>
+        <p id="who"></p>
+      </div>
+      <div id="licences"></div>
+      <div style="display:flex;gap:10px;margin-top:22px;flex-wrap:wrap">
+        <button class="btn ghost" id="resend">Email it to me again</button>
+        <button class="btn ghost" id="signout">Sign out</button>
+      </div>
+    </div>
+
+    <p id="loading" style="color:var(--faint)">Loading…</p>
+  </div>
+</section>
+
+<footer><div class="wrap"><span>© <span id="year"></span> Jendela.</span></div></footer>
+
+<script>
+document.getElementById("year").textContent = new Date().getFullYear();
+const show = (id, on = true) => document.getElementById(id).hidden = !on;
+
+function licenceCard(licence) {
+  const active = licence.status === "active";
+  return `
+    <div class="card" style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+        <h3>${licence.kind === "lifetime" ? "Lifetime licence" : "Licence"}</h3>
+        <span class="tag ${active ? "free" : ""}">${licence.status}</span>
+      </div>
+      <p style="margin-top:12px;font-size:13px;color:var(--muted)">
+        Paste this into Jendela. → Settings → Licence.
+      </p>
+      <code style="display:block;margin-top:10px;padding:12px;border-radius:9px;background:#0E0D13;
+                   border:1px solid var(--line);font-size:11.5px;word-break:break-all;color:var(--text)"
+      >${licence.key}</code>
+      <button class="btn ghost" style="margin-top:12px;padding:8px 14px;font-size:13px"
+              onclick="navigator.clipboard.writeText('${licence.key}');this.textContent='Copied'">Copy key</button>
+    </div>`;
+}
+
+async function load() {
+  const response = await fetch("/api/me");
+  show("loading", false);
+  if (!response.ok) {
+    show("signed-out");
+    if (new URLSearchParams(location.search).get("error") === "link") {
+      const note = document.getElementById("signin-note");
+      note.hidden = false;
+      note.textContent = "That link had already been used or expired. Send a fresh one.";
+    }
+    return;
+  }
+  const account = await response.json();
+  document.getElementById("who").textContent = account.email;
+  document.getElementById("licences").innerHTML =
+    account.licences.length
+      ? account.licences.map(licenceCard).join("")
+      : `<div class="card"><p>No licence on this account yet. If you have just bought one it can take a moment to arrive.</p></div>`;
+  show("signed-in");
+}
+
+document.getElementById("signin-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const note = document.getElementById("signin-note");
+  note.hidden = false;
+  note.textContent = "Sending…";
+  await fetch("/api/auth/request", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ email: document.getElementById("email").value }),
+  });
+  // Deliberately the same message either way: this page should not reveal
+  // which addresses have an account.
+  note.textContent = "If that address has an account, a sign-in link is on its way.";
+});
+
+document.getElementById("resend").addEventListener("click", async (event) => {
+  event.target.textContent = "Sending…";
+  const response = await fetch("/api/licence/resend", { method: "POST" });
+  event.target.textContent = response.ok ? "Sent" : "No active licence";
+});
+
+document.getElementById("signout").addEventListener("click", async () => {
+  await fetch("/api/auth/signout", { method: "POST" });
+  location.reload();
+});
+
+load();
+</script>
+</body>
+</html>
