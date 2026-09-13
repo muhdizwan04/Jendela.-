@@ -31,7 +31,7 @@ struct NoteRecord: Identifiable, Codable, Equatable {
 }
 
 enum NoteStore {
-    private static var directory: URL {
+    static var directory: URL {
         let base = SupportDirectory.root
         try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
         return base
@@ -54,7 +54,34 @@ enum NoteStore {
     static func save(_ text: NSAttributedString, id: UUID) {
         let range = NSRange(location: 0, length: text.length)
         guard let data = text.rtf(from: range, documentAttributes: [:]) else { return }
-        try? data.write(to: url(for: id), options: .atomic)
+        let target = url(for: id)
+        try? data.write(to: target, options: .atomic)
+        // Whatever is written on the desktop note is as private as the rest of
+        // this directory; an atomic write would leave it world-readable.
+        try? FileManager.default.setAttributes(
+            [.posixPermissions: 0o600], ofItemAtPath: target.path)
+    }
+
+    /// Deletes note files with no matching record.
+    ///
+    /// Deleting a note removes its file, so this only ever finds text left by a
+    /// launch that wrote a note and then exited before its record was saved.
+    /// That text should not outlive the note it belonged to.
+    ///
+    /// Only safe when the settings file was genuinely read: an unreadable one
+    /// loads as defaults, which would make every real note look orphaned.
+    static func pruneOrphans(keeping ids: [UUID]) {
+        guard SettingsStore.loadedFromDisk, !ids.isEmpty else { return }
+        let kept = Set(ids.map { $0.uuidString.uppercased() })
+        guard let files = try? FileManager.default.contentsOfDirectory(
+            at: directory, includingPropertiesForKeys: nil) else { return }
+        for file in files {
+            let name = file.lastPathComponent
+            guard name.hasPrefix("note-"), name.hasSuffix(".rtf") else { continue }
+            let id = String(name.dropFirst(5).dropLast(4)).uppercased()
+            guard !kept.contains(id) else { continue }
+            try? FileManager.default.removeItem(at: file)
+        }
     }
 
     static func remove(_ id: UUID) {

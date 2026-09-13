@@ -101,13 +101,24 @@ final class Meetings: ObservableObject {
 
     /// Finds a link worth pressing. Conferencing details land in different
     /// fields depending on who made the invitation, so all of them are searched.
-    private static func joinURL(in event: EKEvent) -> URL? {
-        let hosts = ["zoom.us", "meet.google.com", "teams.microsoft.com", "teams.live.com",
-                     "webex.com", "whereby.com", "meet.jit.si", "discord.com", "around.co"]
+    static let meetingHosts = ["zoom.us", "meet.google.com", "teams.microsoft.com", "teams.live.com",
+                               "webex.com", "whereby.com", "meet.jit.si", "discord.com", "around.co"]
 
+    /// Whether a link may be offered as a Join button.
+    ///
+    /// Matched on the host itself, or a subdomain of it. A plain `contains`
+    /// check was used here, which also accepted `zoom.us.example.com` — an
+    /// invitation is written by whoever sent it, so that turned any calendar
+    /// invite into a trusted-looking button pointing anywhere.
+    static func isMeetingLink(_ url: URL?) -> Bool {
+        guard let host = url?.host?.lowercased() else { return false }
+        return meetingHosts.contains { host == $0 || host.hasSuffix("." + $0) }
+    }
+
+    private static func joinURL(in event: EKEvent) -> URL? {
         func matches(_ url: URL?) -> URL? {
-            guard let url, let host = url.host?.lowercased() else { return nil }
-            return hosts.contains(where: host.contains) ? url : nil
+            guard let url, isMeetingLink(url) else { return nil }
+            return url
         }
 
         if let direct = matches(event.url) { return direct }

@@ -309,6 +309,10 @@ final class QuickChatClient: ObservableObject {
         Self.historyQueue.async {
             guard let data = try? JSONEncoder().encode(snapshot) else { return }
             try? data.write(to: url, options: .atomic)
+            // Saved questions and answers are as private as the notes beside
+            // them; an atomic write would otherwise leave them world-readable.
+            try? FileManager.default.setAttributes(
+                [.posixPermissions: 0o600], ofItemAtPath: url.path)
         }
     }
 

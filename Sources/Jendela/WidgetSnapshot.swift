@@ -150,6 +150,12 @@ enum SharedStore {
         guard previous != next else { return false }
         guard let data = try? JSONEncoder().encode(next) else { return false }
         try? data.write(to: snapshotURL, options: .atomic)
+        // This file carries recent clipboard text so the widget can show it,
+        // and an atomic write takes the default 0644. The clipboard store
+        // itself is encrypted; there is no reason for its most recent entries
+        // to be the one copy readable by anything that can reach the path.
+        try? FileManager.default.setAttributes(
+            [.posixPermissions: 0o600], ofItemAtPath: snapshotURL.path)
         return true
     }
 }

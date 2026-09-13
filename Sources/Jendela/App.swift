@@ -432,6 +432,8 @@ final class JendelaState: ObservableObject {
             // RTF is the source of truth; the plain string feeds the widget.
             quickNoteText = NoteStore.load(first.id).string
         }
+        // Text belonging to notes that no longer exist should not stay on disk.
+        NoteStore.pruneOrphans(keeping: notes.map(\.id))
 
         // Loaded asynchronously: a Keychain read during init can block the
         // main thread before the app has drawn anything.

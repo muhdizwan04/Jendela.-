@@ -62,7 +62,14 @@ enum SettingsStore {
     /// decoder — which silently goes stale the moment a field is added, as it
     /// did — the stored object is merged over the defaults and then decoded
     /// normally. Adding a property needs no further work.
+    /// Whether the last `load()` read a real settings file rather than falling
+    /// back to defaults. Anything destructive keyed off the loaded values — such
+    /// as deleting note files with no matching record — must check this, since
+    /// an unreadable file is otherwise indistinguishable from a first run.
+    nonisolated(unsafe) private(set) static var loadedFromDisk = false
+
     static func load() -> JendelaSettings {
+        loadedFromDisk = false
         guard let data = try? Data(contentsOf: fileURL) else { return JendelaSettings() }
 
         guard let defaults = try? JSONSerialization.jsonObject(
@@ -76,6 +83,7 @@ enum SettingsStore {
         guard let mergedData = try? JSONSerialization.data(withJSONObject: merged),
               let decoded = try? JSONDecoder().decode(JendelaSettings.self, from: mergedData)
         else { return JendelaSettings() }
+        loadedFromDisk = true
         return decoded
     }
 
