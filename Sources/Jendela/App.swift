@@ -1342,6 +1342,12 @@ final class JendelaAppDelegate: NSObject, NSApplicationDelegate {
         // Menu-bar app: no Dock tile. The Studio window is reached from the
         // menu bar item instead.
         NSApp.setActivationPolicy(.accessory)
+        // A second copy would only add a second menu-bar item and a second set
+        // of hotkeys, and can strand the first one (see yieldToRunningInstance).
+        if AppMenu.yieldToRunningInstance() {
+            NSApp.terminate(nil)
+            return
+        }
         // Without a main menu, ⌘V and friends never reach any text field.
         AppMenu.install()
         notchCoordinator = NotchPanelCoordinator(state: state)
@@ -2771,6 +2777,15 @@ struct NotchPanelView: View {
                     .opacity(expanded ? 1 : collapsedFill)
             }
             .clipShape(NotchCardShape(radius: cardRadius))
+            // A way out that does not depend on the menu bar. On a notched Mac
+            // macOS hides overflowing menu-bar items *behind* the notch, and an
+            // accessory app is absent from Force Quit — so if this app's icon
+            // lands in that dead zone there is otherwise no way to quit it.
+            .contextMenu {
+                Button("Open Jendela Studio") { state.openStudio?() }
+                Divider()
+                Button("Quit Jendela.") { NSApp.terminate(nil) }
+            }
             // Shadow is cast downward only, and never near the top edge, so the
             // join with the physical notch stays invisible.
             .shadow(color: .black.opacity(expanded ? 0.45 : 0), radius: 14, y: 8)

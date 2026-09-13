@@ -49,4 +49,25 @@ enum AppMenu {
 
         NSApp.mainMenu = main
     }
+
+    /// Hands over to an instance that is already running, and exits.
+    ///
+    /// Every instance adds its own menu-bar item. On a notched Mac the items
+    /// that do not fit are hidden *behind* the notch rather than dropped, so a
+    /// second copy can push the first one's icon somewhere unclickable — and
+    /// with no Dock tile and no Force Quit entry, that leaves an app running
+    /// with no way to quit it.
+    ///
+    /// Only enforced for a real bundle: a bare executable built by SwiftPM has
+    /// no bundle identifier, and matching on an empty one would make every
+    /// development build fight the last.
+    static func yieldToRunningInstance() -> Bool {
+        guard let identifier = Bundle.main.bundleIdentifier, !identifier.isEmpty else { return false }
+        let mine = ProcessInfo.processInfo.processIdentifier
+        let others = NSRunningApplication.runningApplications(withBundleIdentifier: identifier)
+            .filter { $0.processIdentifier != mine }
+        guard let existing = others.first else { return false }
+        existing.activate()
+        return true
+    }
 }

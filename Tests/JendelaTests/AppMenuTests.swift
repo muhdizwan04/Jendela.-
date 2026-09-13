@@ -39,6 +39,33 @@ final class AppMenuTests: XCTestCase {
         }
     }
 
+    /// An accessory app has no Dock tile and no Force Quit entry, so if its
+    /// menu-bar icon is unreachable ⌘Q is the only way out.
+    func testQuitHasAKeyEquivalent() {
+        AppMenu.install()
+        let event = NSEvent.keyEvent(
+            with: .keyDown, location: .zero, modifierFlags: .command,
+            timestamp: 0, windowNumber: 0, context: nil,
+            characters: "q", charactersIgnoringModifiers: "q",
+            isARepeat: false, keyCode: 0x0C)!
+        var found: NSMenuItem?
+        for item in NSApp.mainMenu?.items ?? [] {
+            for candidate in item.submenu?.items ?? []
+            where candidate.keyEquivalent == "q" && candidate.keyEquivalentModifierMask == .command {
+                found = candidate
+            }
+        }
+        XCTAssertEqual(found?.action, #selector(NSApplication.terminate(_:)))
+        XCTAssertNotNil(event)
+    }
+
+    /// A bare SwiftPM executable has no bundle identifier. Matching on an empty
+    /// one would make every development build terminate itself.
+    func testInstanceGuardIgnoresABundlelessBuild() {
+        if Bundle.main.bundleIdentifier?.isEmpty == false { return }
+        XCTAssertFalse(AppMenu.yieldToRunningInstance())
+    }
+
     func testInstallIsIdempotent() {
         AppMenu.install()
         let first = NSApp.mainMenu
