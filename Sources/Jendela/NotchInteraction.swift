@@ -27,7 +27,7 @@ struct NotchHoverGate {
 
 @MainActor
 final class NotchPanelCoordinator {
-    private let state: WidgetMacState
+    private let state: JendelaState
     let panel: InteractiveNotchPanel
     private var cancellables = Set<AnyCancellable>()
     private var localMonitor: Any?
@@ -40,11 +40,11 @@ final class NotchPanelCoordinator {
     /// Set between a layout request and the pass that serves it.
     private var layoutScheduled = false
 
-    init(state: WidgetMacState) {
+    init(state: JendelaState) {
         self.state = state
         panel = InteractiveNotchPanel(contentRect: .zero,
             styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
-        panel.title = "WidgetMac Notch"
+        panel.title = "Jendela Notch"
         panel.identifier = NSUserInterfaceItemIdentifier("widgetmac.notch")
         panel.isOpaque = false
         panel.backgroundColor = .clear

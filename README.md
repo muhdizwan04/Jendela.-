@@ -1,4 +1,4 @@
-# WidgetMac
+# Jendela
 
 A native, low-energy macOS desktop companion.
 
@@ -90,7 +90,7 @@ re-signs it so the Automation grant survives rebuilds, and opens it.
 Four system-managed widgets ship in an embedded extension: **Quick Note**,
 **Clipboard**, **Theme Clock** and **Photo**. Add them from the desktop widget
 gallery
-(right-click the desktop → Edit Widgets → WidgetMac).
+(right-click the desktop → Edit Widgets → Jendela).
 
 They are on WidgetKit rather than custom always-on windows because the system
 then owns their power budget — a widget costs nothing when it is not updating.

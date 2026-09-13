@@ -93,7 +93,7 @@ struct ClipboardEntry: Identifiable {
 }
 
 @MainActor
-final class WidgetMacState: ObservableObject {
+final class JendelaState: ObservableObject {
     enum NotchSize: String, CaseIterable, Identifiable {
         case compact = "Compact"
         case standard = "Standard"
@@ -296,7 +296,7 @@ final class WidgetMacState: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private var focusTimer: Timer?
     private var loaded = false
-    private var lastSavedSettings: WidgetMacSettings?
+    private var lastSavedSettings: JendelaSettings?
     private var lastPublishedSnapshot: WidgetSnapshot?
 
     enum BatterySaverMode: String, CaseIterable, Identifiable {
@@ -388,7 +388,7 @@ final class WidgetMacState: ObservableObject {
 
     // MARK: - Persistence
 
-    private func apply(_ s: WidgetMacSettings) {
+    private func apply(_ s: JendelaSettings) {
         quickNoteText = s.quickNoteText
         appliedTemplateID = s.appliedTemplateID
         selectedTemplateID = s.selectedTemplateID
@@ -434,8 +434,8 @@ final class WidgetMacState: ObservableObject {
         originalWallpapers = s.originalWallpapers
     }
 
-    private func snapshot() -> WidgetMacSettings {
-        WidgetMacSettings(
+    private func snapshot() -> JendelaSettings {
+        JendelaSettings(
             quickNoteText: quickNoteText,
             appliedTemplateID: appliedTemplateID,
             selectedTemplateID: selectedTemplateID,
@@ -735,7 +735,7 @@ final class WidgetMacState: ObservableObject {
             )
             let maskHeight = mask ? NotchMetrics.notch(on: screen).height * scale : 0
 
-            let source: WidgetMacState.WallpaperSource?
+            let source: JendelaState.WallpaperSource?
             if useTheme {
                 source = .theme
             } else if index < originalWallpapers.count, !originalWallpapers[index].isEmpty {
@@ -1085,13 +1085,13 @@ final class WidgetMacState: ObservableObject {
 }
 
 @main
-struct WidgetMacApp: App {
+struct JendelaApp: App {
     static let studioWindowID = "studio"
 
-    @NSApplicationDelegateAdaptor(WidgetMacAppDelegate.self) private var delegate
+    @NSApplicationDelegateAdaptor(JendelaAppDelegate.self) private var delegate
 
     var body: some Scene {
-        WindowGroup("WidgetMac Studio", id: WidgetMacApp.studioWindowID) {
+        WindowGroup("Jendela Studio", id: JendelaApp.studioWindowID) {
             StudioView(state: delegate.state)
                 .frame(minWidth: 1040, minHeight: 700)
                 .preferredColorScheme(.dark)
@@ -1099,7 +1099,7 @@ struct WidgetMacApp: App {
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 1240, height: 780)
 
-        MenuBarExtra("WidgetMac", systemImage: "rectangle.topthird.inset.filled") {
+        MenuBarExtra("Jendela", systemImage: "rectangle.topthird.inset.filled") {
             MenuBarView(state: delegate.state, delegate: delegate)
         }
         .menuBarExtraStyle(.menu)
@@ -1107,8 +1107,8 @@ struct WidgetMacApp: App {
 }
 
 @MainActor
-final class WidgetMacAppDelegate: NSObject, NSApplicationDelegate {
-    let state = WidgetMacState()
+final class JendelaAppDelegate: NSObject, NSApplicationDelegate {
+    let state = JendelaState()
     private var notchCoordinator: NotchPanelCoordinator?
     private var musicIndicatorCoordinator: AmbientMusicIndicatorCoordinator?
     private var noteCoordinator: DesktopNoteCoordinator?
@@ -1137,10 +1137,10 @@ final class WidgetMacAppDelegate: NSObject, NSApplicationDelegate {
     /// lookup silently did nothing and there was no way back into the app.
     func showStudio(using openWindow: OpenWindowAction) {
         NSApp.activate(ignoringOtherApps: true)
-        if let existing = NSApp.windows.first(where: { $0.identifier?.rawValue.contains(WidgetMacApp.studioWindowID) == true }) {
+        if let existing = NSApp.windows.first(where: { $0.identifier?.rawValue.contains(JendelaApp.studioWindowID) == true }) {
             existing.makeKeyAndOrderFront(nil)
         } else {
-            openWindow(id: WidgetMacApp.studioWindowID)
+            openWindow(id: JendelaApp.studioWindowID)
         }
     }
 
@@ -1164,7 +1164,7 @@ final class WidgetMacAppDelegate: NSObject, NSApplicationDelegate {
 
 @MainActor
 final class ClipboardMonitor: NSObject {
-    private let state: WidgetMacState
+    private let state: JendelaState
     private var timer: Timer?
     private var cancellables = Set<AnyCancellable>()
     private var lastChangeCount = NSPasteboard.general.changeCount
@@ -1181,7 +1181,7 @@ final class ClipboardMonitor: NSObject {
         return state.conserving ? 8 : 3
     }
 
-    init(state: WidgetMacState) {
+    init(state: JendelaState) {
         self.state = state
         super.init()
     }
@@ -1289,16 +1289,16 @@ enum NotchMetrics {
     }
 
     static func cardHeight(
-        for section: WidgetMacState.NotchSection,
+        for section: JendelaState.NotchSection,
         clipboardCount: Int
     ) -> CGFloat {
         menuBarInset + chromeHeight + section.contentHeight(clipboardCount: clipboardCount)
     }
 
     static func expandedSize(
-        for section: WidgetMacState.NotchSection,
+        for section: JendelaState.NotchSection,
         clipboardCount: Int,
-        size: WidgetMacState.NotchSize,
+        size: JendelaState.NotchSize,
         width: CGFloat? = nil
     ) -> NSSize {
         NSSize(
@@ -1334,11 +1334,11 @@ final class InteractiveNotchPanel: NSPanel {
 
 @MainActor
 final class AmbientMusicIndicatorCoordinator {
-    private let state: WidgetMacState
+    private let state: JendelaState
     private let panel: NSPanel
     private var cancellables = Set<AnyCancellable>()
 
-    init(state: WidgetMacState) {
+    init(state: JendelaState) {
         self.state = state
         panel = InteractiveNotchPanel(
             contentRect: NSRect(x: 0, y: 0, width: 96, height: 32),
@@ -1412,7 +1412,7 @@ final class AmbientMusicIndicatorCoordinator {
 
 @MainActor
 final class DesktopNoteCoordinator {
-    private let state: WidgetMacState
+    private let state: JendelaState
     private var panels: [UUID: NSPanel] = [:]
     private var cancellables = Set<AnyCancellable>()
     /// Kept per note so a deleted note's observers can be torn down with it.
@@ -1423,7 +1423,7 @@ final class DesktopNoteCoordinator {
         rawValue: Int(CGWindowLevelForKey(.desktopIconWindow)) + 1
     )
 
-    init(state: WidgetMacState) {
+    init(state: JendelaState) {
         self.state = state
 
         state.$notes
@@ -1521,7 +1521,7 @@ final class DesktopNoteCoordinator {
 
 
 struct StudioView: View {
-    @ObservedObject var state: WidgetMacState
+    @ObservedObject var state: JendelaState
 
     var body: some View {
         HStack(spacing: 0) {
@@ -1551,7 +1551,7 @@ struct StudioView: View {
 }
 
 struct StudioSidebar: View {
-    @ObservedObject var state: WidgetMacState
+    @ObservedObject var state: JendelaState
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -1561,7 +1561,7 @@ struct StudioSidebar: View {
                     .frame(width: 36, height: 36)
                     .overlay { Image(systemName: "sparkles").font(.system(size: 14, weight: .bold)) }
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("WidgetMac").font(.system(size: 15, weight: .bold, design: .rounded))
+                    Text("Jendela.").font(.system(size: 15, weight: .bold, design: .rounded))
                     Text("Desktop studio").font(.caption2).foregroundStyle(.white.opacity(0.42))
                 }
             }
@@ -1576,7 +1576,7 @@ struct StudioSidebar: View {
                 .padding(.horizontal, 20)
                 .padding(.bottom, 8)
 
-            ForEach(WidgetMacState.StudioSection.allCases) { section in
+            ForEach(JendelaState.StudioSection.allCases) { section in
                 Button {
                     state.studioSection = section
                 } label: {
@@ -1623,7 +1623,7 @@ struct StudioSidebar: View {
 struct StudioTopBar: View {
     let title: String
     let subtitle: String
-    @ObservedObject var state: WidgetMacState
+    @ObservedObject var state: JendelaState
     var showsSearch = false
 
     var body: some View {
@@ -1660,7 +1660,7 @@ struct StudioTopBar: View {
 }
 
 struct ThemeHeroView: View {
-    @ObservedObject var state: WidgetMacState
+    @ObservedObject var state: JendelaState
     let theme: DesktopTheme
 
     var body: some View {
@@ -1729,7 +1729,7 @@ struct ThemeHeroView: View {
 }
 
 struct ThemeTemplateCard: View {
-    @ObservedObject var state: WidgetMacState
+    @ObservedObject var state: JendelaState
     let theme: DesktopTheme
 
     var body: some View {
@@ -1779,7 +1779,7 @@ struct ThemeDesktopScene: View {
                     .offset(x: proxy.size.width * 0.24, y: proxy.size.height * 0.18)
                 VStack(spacing: 0) {
                     HStack {
-                        Text("● WidgetMac")
+                        Text("● Jendela")
                         Spacer()
                         Text("9:41")
                     }
@@ -1816,7 +1816,7 @@ struct ThemeDesktopScene: View {
 }
 
 struct PhotoLibraryView: View {
-    @ObservedObject var state: WidgetMacState
+    @ObservedObject var state: JendelaState
 
     private let rotations = [5, 15, 30, 60, 180]
 
@@ -1885,7 +1885,7 @@ struct PhotoLibraryView: View {
                         }
                     }
 
-                    Text("Photos are copied into WidgetMac and downscaled once, so the widget never resizes them while it draws. Rotation is built into the widget timeline — macOS switches pictures itself without waking the app.")
+                    Text("Photos are copied into Jendela and downscaled once, so the widget never resizes them while it draws. Rotation is built into the widget timeline — macOS switches pictures itself without waking the app.")
                         .font(.caption2)
                         .foregroundStyle(.white.opacity(0.36))
                         .fixedSize(horizontal: false, vertical: true)
@@ -1938,7 +1938,7 @@ struct PhotoTile: View {
 }
 
 struct WidgetLibraryView: View {
-    @ObservedObject var state: WidgetMacState
+    @ObservedObject var state: JendelaState
 
     var body: some View {
         VStack(spacing: 0) {
@@ -1995,17 +1995,17 @@ struct WidgetLibraryCard: View {
 }
 
 struct InstructionsStudioView: View {
-    @ObservedObject var state: WidgetMacState
+    @ObservedObject var state: JendelaState
 
     var body: some View {
         VStack(spacing: 0) {
-            StudioTopBar(title: "Instructions", subtitle: "A few calm defaults to make WidgetMac feel right.", state: state)
+            StudioTopBar(title: "Instructions", subtitle: "A few calm defaults to make Jendela feel right.", state: state)
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
                     InstructionCard(number: "01", title: "Pick a look", detail: "Choose a theme, then press Apply this theme. The color system follows the look across the studio, notch, and desktop note.")
                     InstructionCard(number: "02", title: "Keep the desktop quiet", detail: "Quick Notes live at desktop level, behind normal apps. Hide them from the Widgets section whenever you need a clean canvas.")
                     InstructionCard(number: "03", title: "Let the hub do the busy work", detail: "Clipboard, music, sound, and Discord controls stay inside the compact notch hub until you ask for them.")
-                    InstructionCard(number: "04", title: "Save battery", detail: "Battery Saver pauses decorative motion and avoids continuous refresh. WidgetMac remains event-driven while idle.")
+                    InstructionCard(number: "04", title: "Save battery", detail: "Battery Saver pauses decorative motion and avoids continuous refresh. Jendela remains event-driven while idle.")
                 }
                 .padding(26)
             }
@@ -2038,8 +2038,8 @@ struct InstructionCard: View {
 }
 
 struct SectionToggle: View {
-    @ObservedObject var state: WidgetMacState
-    let section: WidgetMacState.NotchSection
+    @ObservedObject var state: JendelaState
+    let section: JendelaState.NotchSection
 
     private var enabled: Bool { state.visibleSections.contains(section) }
     /// The last remaining tab cannot be switched off, so it is shown as locked
@@ -2078,7 +2078,7 @@ struct SectionToggle: View {
 }
 
 struct NotchStudioView: View {
-    @ObservedObject var state: WidgetMacState
+    @ObservedObject var state: JendelaState
 
     var body: some View {
         VStack(spacing: 0) {
@@ -2104,7 +2104,7 @@ struct NotchStudioView: View {
                             columns: [GridItem(.adaptive(minimum: 150), spacing: 8)],
                             spacing: 8
                         ) {
-                            ForEach(WidgetMacState.NotchSection.allCases) { section in
+                            ForEach(JendelaState.NotchSection.allCases) { section in
                                 SectionToggle(state: state, section: section)
                             }
                         }
@@ -2116,7 +2116,7 @@ struct NotchStudioView: View {
                     HStack(alignment: .top, spacing: 16) {
                         ControlCard(title: "Notch behavior", subtitle: "Compact until you need it", symbol: "rectangle.topthird.inset.filled") {
                             Picker("Size", selection: $state.notchSize) {
-                                ForEach(WidgetMacState.NotchSize.allCases) { size in
+                                ForEach(JendelaState.NotchSize.allCases) { size in
                                     Text(size.rawValue).tag(size)
                                 }
                             }
@@ -2138,7 +2138,7 @@ struct NotchStudioView: View {
                         }
                         ControlCard(title: "Power profile", subtitle: "No continuous refresh", symbol: "leaf.fill") {
                             Picker("Battery saver", selection: $state.batterySaverMode) {
-                                ForEach(WidgetMacState.BatterySaverMode.allCases) { mode in
+                                ForEach(JendelaState.BatterySaverMode.allCases) { mode in
                                     Text(mode.label).tag(mode)
                                 }
                             }
@@ -2158,7 +2158,7 @@ struct NotchStudioView: View {
                         Toggle("Show something beside the notch", isOn: $state.showMusicIndicator)
                         if state.showMusicIndicator {
                             Picker("", selection: $state.ambientStyle) {
-                                ForEach(WidgetMacState.AmbientStyle.allCases) { style in
+                                ForEach(JendelaState.AmbientStyle.allCases) { style in
                                     Text(style.label).tag(style)
                                 }
                             }
@@ -2233,7 +2233,7 @@ struct NotchStudioView: View {
 }
 
 struct SettingsStudioView: View {
-    @ObservedObject var state: WidgetMacState
+    @ObservedObject var state: JendelaState
 
     var body: some View {
         VStack(spacing: 0) {
@@ -2266,7 +2266,7 @@ struct SettingsStudioView: View {
                     symbol: "leaf.fill"
                 ) {
                     Picker("", selection: $state.batterySaverMode) {
-                        ForEach(WidgetMacState.BatterySaverMode.allCases) { Text($0.label).tag($0) }
+                        ForEach(JendelaState.BatterySaverMode.allCases) { Text($0.label).tag($0) }
                     }
                     .labelsHidden()
                     .frame(width: 150)
@@ -2356,7 +2356,7 @@ struct NotchCardShape: Shape {
 }
 
 struct NotchPanelView: View {
-    @ObservedObject var state: WidgetMacState
+    @ObservedObject var state: JendelaState
     private var isHovering: Bool { state.notchHovered }
 
     private var expanded: Bool { state.notchExpanded }
@@ -2480,7 +2480,7 @@ struct NotchPanelView: View {
                     .layoutPriority(1)
                     .overlay { Image(systemName: "sparkles").font(.caption.weight(.bold)) }
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("WidgetMac")
+                    Text("Jendela.")
                         .font(.system(size: 13, weight: .semibold, design: .rounded))
                         .lineLimit(1)
                     Text("Desktop is calm")
@@ -2585,7 +2585,7 @@ struct NotchPanelView: View {
 }
 
 struct HomeNotchSection: View {
-    @ObservedObject var state: WidgetMacState
+    @ObservedObject var state: JendelaState
 
     var body: some View {
         VStack(spacing: 13) {
@@ -2638,7 +2638,7 @@ struct HomeNotchSection: View {
 /// Cover art for the current track, falling back to the accent gradient when
 /// the player exposes none.
 struct TrackArtwork: View {
-    @ObservedObject var state: WidgetMacState
+    @ObservedObject var state: JendelaState
     let size: CGFloat
     let corner: CGFloat
     var symbolSize: CGFloat = 16
@@ -2665,7 +2665,7 @@ struct TrackArtwork: View {
 }
 
 struct AmbientMusicIndicatorView: View {
-    @ObservedObject var state: WidgetMacState
+    @ObservedObject var state: JendelaState
 
     private var track: NowPlayingMonitor.Track? { state.nowPlaying.track }
 
@@ -2715,7 +2715,7 @@ struct AmbientMusicIndicatorView: View {
 
 /// Cover art when the player gives us any, and the theme disc when it does not.
 struct AmbientArtwork: View {
-    @ObservedObject var state: WidgetMacState
+    @ObservedObject var state: JendelaState
 
     var body: some View {
         Group {
@@ -2742,7 +2742,7 @@ struct AmbientArtwork: View {
 /// not conserving power — a permanently animating menu-bar item is exactly the
 /// kind of thing this app is supposed to avoid.
 struct AmbientBars: View {
-    @ObservedObject var state: WidgetMacState
+    @ObservedObject var state: JendelaState
     @State private var phase: CGFloat = 0
 
     private var animates: Bool { state.isPlaying && !state.conserving }
@@ -2777,7 +2777,7 @@ struct AmbientBars: View {
 }
 
 struct ClipboardNotchSection: View {
-    @ObservedObject var state: WidgetMacState
+    @ObservedObject var state: JendelaState
     @State private var hoveredID: ClipboardEntry.ID?
     @State private var copiedID: ClipboardEntry.ID?
     @State private var preview: ClipboardEntry?
@@ -2972,7 +2972,7 @@ struct ClipboardEntryThumbnail: View {
 /// rather than the single truncated line the row can show.
 struct ClipboardPreview: View {
     let entry: ClipboardEntry
-    @ObservedObject var state: WidgetMacState
+    @ObservedObject var state: JendelaState
     let dismiss: () -> Void
 
     var body: some View {
@@ -3038,7 +3038,7 @@ enum ClipboardDragProvider {
 }
 
 struct MusicNotchSection: View {
-    @ObservedObject var state: WidgetMacState
+    @ObservedObject var state: JendelaState
 
     var body: some View {
         VStack(alignment: .leading, spacing: 11) {
@@ -3110,7 +3110,7 @@ struct MusicNotchSection: View {
 }
 
 struct SoundNotchSection: View {
-    @ObservedObject var state: WidgetMacState
+    @ObservedObject var state: JendelaState
 
     var body: some View {
         VStack(alignment: .leading, spacing: 13) {
@@ -3171,7 +3171,7 @@ struct SoundNotchSection: View {
 }
 
 struct DiscordNotchSection: View {
-    @ObservedObject var state: WidgetMacState
+    @ObservedObject var state: JendelaState
 
     var body: some View {
         VStack(alignment: .leading, spacing: 11) {
@@ -3239,7 +3239,7 @@ struct DiscordNotchSection: View {
 
 
 struct DesktopNoteView: View {
-    @ObservedObject var state: WidgetMacState
+    @ObservedObject var state: JendelaState
     let note: NoteRecord
     @State private var hovering = false
 
@@ -3283,21 +3283,21 @@ struct DesktopNoteView: View {
 
 
 struct MenuBarView: View {
-    @ObservedObject var state: WidgetMacState
-    let delegate: WidgetMacAppDelegate
+    @ObservedObject var state: JendelaState
+    let delegate: JendelaAppDelegate
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
-        Button("Open WidgetMac Studio") { delegate.showStudio(using: openWindow) }
+        Button("Open Jendela Studio") { delegate.showStudio(using: openWindow) }
         Button(state.notchExpanded ? "Collapse Notch Hub" : "Expand Notch Hub") { delegate.toggleNotch() }
         Button(state.noteVisible ? "Hide Desktop Note" : "Show Desktop Note") { delegate.toggleNote() }
         Button(state.hideNotch ? "Show the Notch" : "Hide the Notch") { state.setHideNotch(!state.hideNotch) }
         Divider()
         Picker("Battery Saver", selection: $state.batterySaverMode) {
-            ForEach(WidgetMacState.BatterySaverMode.allCases) { Text($0.label).tag($0) }
+            ForEach(JendelaState.BatterySaverMode.allCases) { Text($0.label).tag($0) }
         }
         Divider()
-        Button("Quit WidgetMac") { NSApp.terminate(nil) }
+        Button("Quit Jendela") { NSApp.terminate(nil) }
     }
 }
 
@@ -3399,7 +3399,7 @@ struct CallToggle: View {
 }
 
 struct NotchPreview: View {
-    @ObservedObject var state: WidgetMacState
+    @ObservedObject var state: JendelaState
 
     var body: some View {
         Button {
@@ -3413,7 +3413,7 @@ struct NotchPreview: View {
                             .frame(width: 23, height: 23)
                             .overlay { Image(systemName: "sparkles").font(.system(size: 8, weight: .bold)) }
                         VStack(alignment: .leading, spacing: 0) {
-                            Text("WidgetMac").font(.system(size: 9, weight: .bold, design: .rounded))
+                            Text("Jendela.").font(.system(size: 9, weight: .bold, design: .rounded))
                             Text("Desktop is calm").font(.system(size: 6)).foregroundStyle(.white.opacity(0.46))
                         }
                         Spacer()
@@ -3425,7 +3425,7 @@ struct NotchPreview: View {
                     .frame(height: 36)
 
                     HStack(spacing: 5) {
-                        ForEach(WidgetMacState.NotchSection.allCases) { section in
+                        ForEach(JendelaState.NotchSection.allCases) { section in
                             Image(systemName: section.symbol)
                                 .font(.system(size: 8, weight: .semibold))
                                 .frame(maxWidth: .infinity)

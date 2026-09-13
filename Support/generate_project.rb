@@ -7,7 +7,7 @@ APP_ID    = 'com.widgetmac.desktop'
 EXT_ID    = "#{APP_ID}.widgets"
 DEPLOY    = '15.0'
 
-path = File.join(ROOT, 'WidgetMac.xcodeproj')
+path = File.join(ROOT, 'Jendela.xcodeproj')
 FileUtils.rm_rf(path)
 project = Xcodeproj::Project.new(path)
 
@@ -34,25 +34,25 @@ project.build_configurations.each do |config|
 end
 
 # ---------------- groups ----------------
-app_group = project.new_group('WidgetMac',        'Sources/WidgetMac')
-ext_group = project.new_group('WidgetMacWidgets', 'WidgetMacWidgets')
+app_group = project.new_group('Jendela',        'Sources/Jendela')
+ext_group = project.new_group('JendelaWidgets', 'JendelaWidgets')
 support   = project.new_group('Support',          'Support')
 
 # `WidgetSnapshot.swift` lives with the app but is compiled into both
 # processes, so the widget can decode what the app writes.
-SHARED = 'Sources/WidgetMac/WidgetSnapshot.swift'
-app_sources = Dir[File.join(ROOT, 'Sources/WidgetMac/*.swift')].sort
-ext_sources = Dir[File.join(ROOT, 'WidgetMacWidgets/*.swift')].sort
+SHARED = 'Sources/Jendela/WidgetSnapshot.swift'
+app_sources = Dir[File.join(ROOT, 'Sources/Jendela/*.swift')].sort
+ext_sources = Dir[File.join(ROOT, 'JendelaWidgets/*.swift')].sort
 
 # ---------------- app target ----------------
-app = project.new_target(:application, 'WidgetMac', :osx, DEPLOY)
+app = project.new_target(:application, 'Jendela', :osx, DEPLOY)
 app.build_configurations.each do |c|
   c.build_settings.merge!(
     'PRODUCT_BUNDLE_IDENTIFIER' => APP_ID,
-    'INFOPLIST_FILE'            => 'Support/WidgetMac-Info.plist',
+    'INFOPLIST_FILE'            => 'Support/Jendela-Info.plist',
     'MARKETING_VERSION'         => '0.2.0',
     'CURRENT_PROJECT_VERSION'   => '2',
-    'CODE_SIGN_ENTITLEMENTS'    => 'Support/WidgetMac.entitlements',
+    'CODE_SIGN_ENTITLEMENTS'    => 'Support/Jendela.entitlements',
     'ENABLE_APP_SANDBOX'        => 'NO'
   )
 end
@@ -64,14 +64,14 @@ app_sources.each do |f|
 end
 
 # ---------------- widget extension target ----------------
-ext = project.new_target(:app_extension, 'WidgetMacWidgets', :osx, DEPLOY)
+ext = project.new_target(:app_extension, 'JendelaWidgets', :osx, DEPLOY)
 ext.build_configurations.each do |c|
   c.build_settings.merge!(
     'PRODUCT_BUNDLE_IDENTIFIER' => EXT_ID,
-    'INFOPLIST_FILE'            => 'WidgetMacWidgets/Info.plist',
+    'INFOPLIST_FILE'            => 'JendelaWidgets/Info.plist',
     'MARKETING_VERSION'         => '0.2.0',
     'CURRENT_PROJECT_VERSION'   => '2',
-    'CODE_SIGN_ENTITLEMENTS'    => 'Support/WidgetMacWidgets.entitlements',
+    'CODE_SIGN_ENTITLEMENTS'    => 'Support/JendelaWidgets.entitlements',
     'ENABLE_APP_SANDBOX'        => 'YES',
     'SKIP_INSTALL'              => 'YES'
   )
@@ -93,8 +93,8 @@ embed.add_file_reference(ext.product_reference, true)
 icon = support.new_file(File.join(ROOT, 'Support/AppIcon.icns'))
 app.add_resources([icon])
 
-support.new_file(File.join(ROOT, 'Support/WidgetMac-Info.plist'))
-support.new_file(File.join(ROOT, 'WidgetMacWidgets/Info.plist'))
+support.new_file(File.join(ROOT, 'Support/Jendela-Info.plist'))
+support.new_file(File.join(ROOT, 'JendelaWidgets/Info.plist'))
 
 project.save
 puts "generated #{path}"

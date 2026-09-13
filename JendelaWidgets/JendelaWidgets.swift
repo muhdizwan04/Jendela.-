@@ -65,7 +65,7 @@ private struct ThemeBackground: View {
 
 struct QuickNoteWidget: Widget {
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "WidgetMacQuickNote", provider: SnapshotProvider()) { entry in
+        StaticConfiguration(kind: "JendelaQuickNote", provider: SnapshotProvider()) { entry in
             QuickNoteWidgetView(snapshot: entry.snapshot)
                 .containerBackground(for: .widget) { ThemeBackground(snapshot: entry.snapshot) }
         }
@@ -104,7 +104,7 @@ struct QuickNoteWidgetView: View {
 
 struct ClipboardWidget: Widget {
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "WidgetMacClipboard", provider: SnapshotProvider()) { entry in
+        StaticConfiguration(kind: "JendelaClipboard", provider: SnapshotProvider()) { entry in
             ClipboardWidgetView(snapshot: entry.snapshot)
                 .containerBackground(for: .widget) { ThemeBackground(snapshot: entry.snapshot) }
         }
@@ -172,7 +172,7 @@ struct ClipboardWidgetView: View {
 
 struct ThemeClockWidget: Widget {
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "WidgetMacClock", provider: SnapshotProvider()) { entry in
+        StaticConfiguration(kind: "JendelaClock", provider: SnapshotProvider()) { entry in
             ThemeClockWidgetView(snapshot: entry.snapshot)
                 .containerBackground(for: .widget) { ThemeBackground(snapshot: entry.snapshot) }
         }
@@ -257,7 +257,7 @@ struct PhotoProvider: TimelineProvider {
 
 struct PhotoWidget: Widget {
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "WidgetMacPhoto", provider: PhotoProvider()) { entry in
+        StaticConfiguration(kind: "JendelaPhoto", provider: PhotoProvider()) { entry in
             PhotoWidgetView(entry: entry)
                 .containerBackground(for: .widget) {
                     if let name = entry.photo, let image = PhotoStore.image(named: name) {
@@ -284,7 +284,7 @@ struct PhotoWidgetView: View {
                 Image(systemName: "photo.on.rectangle.angled")
                     .font(.system(size: 20, weight: .medium))
                     .foregroundStyle(.white.opacity(0.8))
-                Text("Add photos in WidgetMac")
+                Text("Add photos in Jendela")
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(.white.opacity(0.65))
                     .multilineTextAlignment(.center)
@@ -311,7 +311,7 @@ struct PhotoWidgetView: View {
 // MARK: - Bundle
 
 @main
-struct WidgetMacWidgets: WidgetBundle {
+struct JendelaWidgets: WidgetBundle {
     var body: some Widget {
         QuickNoteWidget()
         ClipboardWidget()

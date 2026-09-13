@@ -11,12 +11,12 @@ import SwiftUI
 /// observe a call from outside. Running state is real; the rest is yours to set.
 @MainActor
 final class DiscordOverlayCoordinator {
-    private let state: WidgetMacState
+    private let state: JendelaState
     private let panel: NSPanel
     private var cancellables = Set<AnyCancellable>()
     private var observers: [Any] = []
 
-    init(state: WidgetMacState) {
+    init(state: JendelaState) {
         self.state = state
         panel = InteractiveNotchPanel(
             contentRect: state.discordOverlayFrame,
@@ -66,7 +66,7 @@ final class DiscordOverlayCoordinator {
 }
 
 struct DiscordOverlayView: View {
-    @ObservedObject var state: WidgetMacState
+    @ObservedObject var state: JendelaState
     @State private var hovering = false
 
     private var tiles: [DiscordTile] {
@@ -188,7 +188,7 @@ enum DiscordTile: String, Identifiable {
 
 struct DiscordTileView: View {
     let tile: DiscordTile
-    @ObservedObject var state: WidgetMacState
+    @ObservedObject var state: JendelaState
 
     var body: some View {
         ZStack {

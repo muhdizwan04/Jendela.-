@@ -2,18 +2,18 @@
 import PackageDescription
 
 let package = Package(
-    name: "WidgetMac",
+    name: "Jendela",
     platforms: [
         .macOS(.v15)
     ],
     products: [
-        .executable(name: "WidgetMac", targets: ["WidgetMac"])
+        .executable(name: "Jendela", targets: ["Jendela"])
     ],
     targets: [
         .executableTarget(
-            name: "WidgetMac",
-            path: "Sources/WidgetMac"
+            name: "Jendela",
+            path: "Sources/Jendela"
         ),
-        .testTarget(name: "WidgetMacTests", dependencies: ["WidgetMac"], path: "Tests/WidgetMacTests")
+        .testTarget(name: "JendelaTests", dependencies: ["Jendela"], path: "Tests/JendelaTests")
     ]
 )

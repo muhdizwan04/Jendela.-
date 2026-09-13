@@ -81,7 +81,7 @@ final class QuickChatClient: ObservableObject {
     private var directory: URL {
         if let storageDirectory { return storageDirectory }
         return FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("WidgetMac/QuickChat", isDirectory: true)
+            .appendingPathComponent("Jendela/QuickChat", isDirectory: true)
     }
 
     func activate() {
@@ -163,7 +163,7 @@ final class QuickChatClient: ObservableObject {
         input = stdin.fileHandleForWriting
         output = stdout.fileHandleForReading
         errorOutput = stderr.fileHandleForReading
-        _ = try await request("initialize", ["clientInfo": ["name": "widgetmac", "title": "WidgetMac Quick Chat", "version": "0.3.0"]])
+        _ = try await request("initialize", ["clientInfo": ["name": "widgetmac", "title": "Jendela Quick Chat", "version": "0.3.0"]])
         try write(["method": "initialized"])
         initialized = true
     }
@@ -221,7 +221,7 @@ final class QuickChatClient: ObservableObject {
                 try await connect()
                 _ = try await request("account/logout", [:])
                 signedIn = false; messages = []; threadID = nil
-                status = "Signed out of WidgetMac."
+                status = "Signed out of Jendela."
             } catch { self.error = error.localizedDescription }
             connecting = false
         }
@@ -243,7 +243,7 @@ final class QuickChatClient: ObservableObject {
                 if threadID == nil {
                     var params: [String: Any] = ["cwd": directory.appendingPathComponent("Empty").path,
                         "approvalPolicy": "never", "sandbox": "read-only", "ephemeral": true,
-                        "baseInstructions": "You are the quick chat assistant in WidgetMac. Answer conversationally and concisely. This is a text-only conversation. Do not use tools, run commands, inspect files, or act on the computer. Ask for pasted context if needed."]
+                        "baseInstructions": "You are the quick chat assistant in Jendela. Answer conversationally and concisely. This is a text-only conversation. Do not use tools, run commands, inspect files, or act on the computer. Ask for pasted context if needed."]
                     if let model { params["model"] = model }
                     let result = try await request("thread/start", params)
                     threadID = (result["thread"] as? [String: Any])?["id"] as? String
@@ -389,7 +389,7 @@ final class QuickChatClient: ObservableObject {
                 continue
             }
             if let id = event["id"] { // Never approve tool actions from a quick chat.
-                try? write(["id": id, "error": ["code": -32601, "message": "WidgetMac quick chat does not execute tools."]])
+                try? write(["id": id, "error": ["code": -32601, "message": "Jendela quick chat does not execute tools."]])
                 continue
             }
             let params = event["params"] as? [String: Any] ?? [:]
@@ -454,7 +454,7 @@ final class QuickChatClient: ObservableObject {
         for continuation in pending { continuation.resume(throwing: failure(message)) }
     }
     private func failure(_ message: String) -> NSError {
-        NSError(domain: "WidgetMac.QuickChat", code: 1, userInfo: [NSLocalizedDescriptionKey: message])
+        NSError(domain: "Jendela.QuickChat", code: 1, userInfo: [NSLocalizedDescriptionKey: message])
     }
 }
 
@@ -499,7 +499,7 @@ struct QuickChatView: View {
                     }
                     Menu {
                         Text(client.modelName)
-                        Button("Sign out of WidgetMac") { client.signOut() }
+                        Button("Sign out of Jendela") { client.signOut() }
                         Button("Open ChatGPT") { NSWorkspace.shared.open(URL(string: "https://chatgpt.com")!) }
                     } label: { Image(systemName: "ellipsis.circle").frame(width: 28, height: 28) }
                     .menuStyle(.borderlessButton).fixedSize()

@@ -48,7 +48,7 @@ enum MusicIconStore {
 
     static var customURL: URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("WidgetMac", isDirectory: true)
+            .appendingPathComponent("Jendela", isDirectory: true)
         try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
         return base.appendingPathComponent("music-icon.png")
     }

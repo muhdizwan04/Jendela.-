@@ -1,6 +1,6 @@
 import AppKit
 import XCTest
-@testable import WidgetMac
+@testable import Jendela
 
 final class InteractionTests: XCTestCase {
     func testHoverRequiresEntry() {
@@ -31,7 +31,7 @@ final class InteractionTests: XCTestCase {
 
     @MainActor func testPanelAnchorsToPhysicalScreenTop() throws {
         guard let screen = NSScreen.main else { throw XCTSkip("No GUI screen in this test runner") }
-        for section in WidgetMacState.NotchSection.allCases {
+        for section in JendelaState.NotchSection.allCases {
             let size = NotchMetrics.expandedSize(for: section, clipboardCount: 5, size: .standard)
             let frame = NotchMetrics.topAlignedFrame(size, on: screen)
             XCTAssertEqual(frame.maxY, screen.frame.maxY, accuracy: 1)
@@ -69,7 +69,7 @@ final class InteractionTests: XCTestCase {
     /// A deleted note used to come back: ordering its window out made it resign
     /// key, and the resign handler re-showed it. Guards against a duplicate.
     @MainActor func testDeletedNoteDoesNotComeBack() {
-        let state = WidgetMacState()
+        let state = JendelaState()
         let coordinator = DesktopNoteCoordinator(state: state)
         _ = coordinator
         state.noteVisible = true
