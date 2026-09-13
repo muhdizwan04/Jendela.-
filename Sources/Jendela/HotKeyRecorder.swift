@@ -8,6 +8,8 @@ struct HotKeyRecorder: View {
     @ObservedObject var state: JendelaState
     @State private var recording = false
     @State private var monitor: Any?
+    /// Set when the last combination pressed was rejected as unsafe.
+    @State private var unsafeAttempt = false
 
     private var binding: HotKeyBinding { state.hotKeys[action] ?? .none }
     private var rejected: Bool { state.rejectedHotKeys.contains(action) }
@@ -47,7 +49,12 @@ struct HotKeyRecorder: View {
                 .help("Clear this shortcut")
             }
 
-            if rejected {
+            if unsafeAttempt {
+                Text("Add ⇧, ⌥ or ⌃")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.orange)
+                    .help("A system-wide shortcut needs two modifiers, or it takes the combination away from every app")
+            } else if rejected {
                 Text("In use")
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(.orange)
@@ -59,13 +66,24 @@ struct HotKeyRecorder: View {
 
     private func start() {
         recording = true
+        unsafeAttempt = false
         monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .flagsChanged]) { event in
             guard event.type == .keyDown else { return event }
             if event.keyCode == 53 { stop(); return nil }   // Esc cancels
 
             let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
                 .intersection([.command, .option, .control, .shift])
-            guard !flags.isEmpty else { return nil }  // a bare key would hijack typing everywhere
+
+            // Keep listening rather than storing something that would take the
+            // combination away from the whole Mac. ⌘V recorded here stopped
+            // paste working in every app.
+            let candidate = HotKeyBinding(keyCode: UInt32(event.keyCode),
+                                          modifiers: flags.rawValue, enabled: true)
+            guard candidate.isSafeForGlobalUse else {
+                unsafeAttempt = true
+                return nil
+            }
+            unsafeAttempt = false
 
             state.setHotKey(action, to: HotKeyBinding(
                 keyCode: UInt32(event.keyCode),
@@ -79,6 +97,7 @@ struct HotKeyRecorder: View {
 
     private func stop() {
         recording = false
+        unsafeAttempt = false
         if let monitor { NSEvent.removeMonitor(monitor) }
         monitor = nil
     }

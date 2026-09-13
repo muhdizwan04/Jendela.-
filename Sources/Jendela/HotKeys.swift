@@ -15,7 +15,19 @@ struct HotKeyBinding: Codable, Equatable {
     /// A combination is only usable if it carries a modifier — otherwise it
     /// would swallow an ordinary keystroke system-wide.
     var isValid: Bool {
-        enabled && keyCode != 0 && !flags.intersection([.command, .option, .control, .shift]).isEmpty
+        enabled && keyCode != 0 && isSafeForGlobalUse
+    }
+
+    /// Whether this is safe to register system-wide.
+    ///
+    /// These are Carbon hot keys, which take the combination away from *every*
+    /// app on the Mac. A single modifier is never enough: ⌘V bound here stops
+    /// paste working anywhere, and ⇧V or ⌥V swallow ordinary typing. Requiring
+    /// two modifiers keeps a global shortcut clear of everything macOS and
+    /// other apps already own — which is what the defaults do.
+    var isSafeForGlobalUse: Bool {
+        let modifiers = flags.intersection([.command, .option, .control, .shift])
+        return modifiers.rawValue.nonzeroBitCount >= 2
     }
 
     var display: String {

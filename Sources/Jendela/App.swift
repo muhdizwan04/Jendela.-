@@ -392,6 +392,9 @@ final class JendelaState: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private var focusTimer: Timer?
     private var loaded = false
+    /// Set when a stored shortcut had to be replaced as unsafe, so the repair
+    /// is written back rather than redone silently on every launch.
+    private var repairedHotKeys = false
     private var lastSavedSettings: JendelaSettings?
     private var lastPublishedSnapshot: WidgetSnapshot?
 
@@ -443,6 +446,10 @@ final class JendelaState: ObservableObject {
 
         lastSavedSettings = snapshot()
         loaded = true
+        if repairedHotKeys, let repaired = lastSavedSettings {
+            SettingsStore.save(repaired)
+            repairedHotKeys = false
+        }
 
         // One debounced write covers every setting *and* the note text, instead
         // of a synchronous UserDefaults write on each keystroke.
@@ -514,7 +521,17 @@ final class JendelaState: ObservableObject {
         needsOnboarding = !s.hasOnboarded
         var keys: [HotKeyAction: HotKeyBinding] = [:]
         for action in HotKeyAction.allCases {
-            keys[action] = s.hotKeys[action.rawValue] ?? action.defaultBinding
+            let stored = s.hotKeys[action.rawValue] ?? action.defaultBinding
+            // An earlier build let a single-modifier combination be recorded.
+            // Left alone, a stored ⌘V goes on taking paste away from the whole
+            // Mac on every launch, and the only way out is a settings screen
+            // the shortcut itself makes hard to reach.
+            if stored.enabled, stored.keyCode != 0, !stored.isSafeForGlobalUse {
+                keys[action] = action.defaultBinding
+                repairedHotKeys = true
+            } else {
+                keys[action] = stored
+            }
         }
         hotKeys = keys
         skipConcealedClipboard = s.skipConcealedClipboard
