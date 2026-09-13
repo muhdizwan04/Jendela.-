@@ -8,7 +8,7 @@
 <link rel="stylesheet" href="/styles.css">
 <style>
   .stat-row { display:grid; gap:14px; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); }
-  .stat { background:var(--bg-soft); border:1px solid var(--line); border-radius:14px; padding:18px; }
+  .stat { background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:18px; }
   .stat .n { font-size:28px; font-weight:700; letter-spacing:-.02em; }
   .stat .k { font-size:12px; color:var(--faint); text-transform:uppercase; letter-spacing:.05em; }
   table { width:100%; border-collapse:collapse; font-size:14px; }
@@ -20,11 +20,11 @@
   .pill.active { background:rgba(110,231,183,.14); color:#6EE7B7; }
   .pill.refunded, .pill.revoked { background:rgba(248,113,113,.14); color:#F87171; }
   input.search { width:100%; padding:12px 14px; border-radius:10px; border:1px solid var(--line);
-                 background:#0E0D13; color:var(--text); font-size:15px; }
+                 background:#141110; color:var(--text); font-size:15px; }
   .bars { display:flex; align-items:flex-end; gap:5px; height:110px; }
   .bar { flex:1; background:var(--accent-strong); border-radius:3px 3px 0 0; min-height:2px; position:relative; }
   .bar span { position:absolute; bottom:-19px; left:50%; translate:-50% 0; font-size:9px; color:var(--faint); }
-  .note { background:rgba(167,139,250,.07); border:1px solid rgba(167,139,250,.2);
+  .note { background:var(--accent-dim); border:1px solid var(--accent-line);
           border-radius:12px; padding:16px; color:var(--muted); font-size:13.5px; }
 </style>
 </head>
@@ -72,10 +72,10 @@
         <form id="issue" style="display:flex;gap:10px;flex-wrap:wrap">
           <input id="issue-email" type="email" required placeholder="person@example.com"
                  style="flex:1;min-width:220px;padding:11px 13px;border-radius:9px;
-                        border:1px solid var(--line);background:#0E0D13;color:var(--text)">
+                        border:1px solid var(--line);background:#141110;color:var(--text)">
           <input id="issue-note" placeholder="reason (optional)"
                  style="flex:1;min-width:160px;padding:11px 13px;border-radius:9px;
-                        border:1px solid var(--line);background:#0E0D13;color:var(--text)">
+                        border:1px solid var(--line);background:#141110;color:var(--text)">
           <button class="btn primary" type="submit">Issue &amp; email</button>
         </form>
         <p id="issue-result" style="margin-top:12px;font-size:13px;color:var(--muted)" hidden></p>

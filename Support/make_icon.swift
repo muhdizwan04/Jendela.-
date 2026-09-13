@@ -4,10 +4,11 @@ import Foundation
 
 // Draws the app icon and emits a full .iconset.
 //
-// The mark is the product: a squircle with the notch cut flush into its top
-// edge, and the hub's glow spilling out beneath it. Deliberately only two
-// shapes — anything finer turns to mush at 16pt, which is where an app icon is
-// seen most often.
+// "Jendela" is Malay for window, so the mark is a window: a four-pane aperture
+// in a dark warm plate, with light coming through it. A notch shape was the
+// obvious motif and the wrong one — it is the same mark every notch utility
+// uses. Deliberately few shapes: anything finer turns to mush at 16pt, which
+// is where an app icon is actually seen.
 
 let canvas: CGFloat = 1024
 // macOS icons sit inside their canvas rather than filling it.
@@ -40,7 +41,7 @@ func render() -> CGImage {
     ctx.saveGState()
     ctx.setShadow(offset: CGSize(width: 0, height: -18), blur: 46, color: colour(0x000000, 0.45))
     ctx.addPath(plateShape)
-    ctx.setFillColor(colour(0x1A1430))
+    ctx.setFillColor(colour(0x151110))
     ctx.fillPath()
     ctx.restoreGState()
 
@@ -48,12 +49,12 @@ func render() -> CGImage {
     ctx.addPath(plateShape)
     ctx.clip()
 
-    // Violet body with real depth, bright enough that black reads against it
-    // at 16pt and dark enough that the glow has somewhere to fall off to.
+    // Warm near-black body. Dark enough that the lit panes carry the whole
+    // icon, warm enough that it never reads as plain graphite.
     let body = CGGradient(
         colorsSpace: space,
-        colors: [colour(0xB794FF), colour(0x7C3AED), colour(0x3B1E7A), colour(0x1E1038)] as CFArray,
-        locations: [0, 0.38, 0.78, 1]
+        colors: [colour(0x2A211C), colour(0x191311), colour(0x0E0A09)] as CFArray,
+        locations: [0, 0.55, 1]
     )!
     ctx.drawLinearGradient(
         body,
@@ -62,76 +63,39 @@ func render() -> CGImage {
         options: []
     )
 
-    // The hub itself: the notch, expanded. Flush with the top edge, rounded
-    // only at the bottom — the same shape the panel makes on screen.
-    let notchWidth: CGFloat = 430
-    let notchHeight: CGFloat = 322
-    let notchRadius: CGFloat = 96
-    let notch = CGRect(
-        x: plate.midX - notchWidth / 2,
-        y: plate.maxY - notchHeight,
-        width: notchWidth,
-        height: notchHeight
-    )
-    let notchPath = CGMutablePath()
-    notchPath.move(to: CGPoint(x: notch.minX, y: notch.maxY))
-    notchPath.addLine(to: CGPoint(x: notch.minX, y: notch.minY + notchRadius))
-    notchPath.addQuadCurve(
-        to: CGPoint(x: notch.minX + notchRadius, y: notch.minY),
-        control: CGPoint(x: notch.minX, y: notch.minY)
-    )
-    notchPath.addLine(to: CGPoint(x: notch.maxX - notchRadius, y: notch.minY))
-    notchPath.addQuadCurve(
-        to: CGPoint(x: notch.maxX, y: notch.minY + notchRadius),
-        control: CGPoint(x: notch.maxX, y: notch.minY)
-    )
-    notchPath.addLine(to: CGPoint(x: notch.maxX, y: notch.maxY))
-    notchPath.closeSubpath()
+    // The window aperture. Drawn as one rounded opening and then split by
+    // straight mullion bars — four separately rounded panes left a dark blob
+    // where their corners met, which at 16pt looked like a smudge.
+    let frame = CGRect(x: plate.midX - 236, y: plate.midY - 250, width: 472, height: 500)
+    let aperture = CGPath(roundedRect: frame, cornerWidth: 74, cornerHeight: 74, transform: nil)
 
-    // Light spilling out from under the hub, as though it has just opened.
-    let glow = CGGradient(
-        colorsSpace: space,
-        colors: [colour(0xFFFFFF, 0.62), colour(0xD8B4FE, 0.34), colour(0xA855F7, 0.10), colour(0xFFFFFF, 0)] as CFArray,
-        locations: [0, 0.30, 0.62, 1]
-    )!
-    // Squashed into an ellipse so it reads as light cast downward from the
-    // opening rather than a round blob sitting behind it.
-    let centre = CGPoint(x: plate.midX, y: notch.minY - 10)
     ctx.saveGState()
-    ctx.translateBy(x: centre.x, y: centre.y)
-    ctx.scaleBy(x: 1.75, y: 0.85)
-    ctx.translateBy(x: -centre.x, y: -centre.y)
-    ctx.drawRadialGradient(glow, startCenter: centre, startRadius: 14,
-                           endCenter: centre, endRadius: 250, options: [])
-    ctx.restoreGState()
-
-    ctx.addPath(notchPath)
-    ctx.setFillColor(colour(0x000000))
-    ctx.fillPath()
-
-    // One accent tile inside the hub — the app's own mark, and at 16pt it
-    // survives as a single dot of colour that keeps the icon from reading
-    // as a plain black slab.
-    let tile = CGRect(x: plate.midX - 76, y: notch.minY + 74, width: 152, height: 152)
-    let tilePath = CGPath(roundedRect: tile, cornerWidth: 48, cornerHeight: 48, transform: nil)
-    ctx.saveGState()
-    ctx.addPath(tilePath)
+    ctx.addPath(aperture)
     ctx.clip()
-    let tileFill = CGGradient(
+
+    // Light through the glass: one source at the top left, falling off across
+    // the diagonal.
+    let glass = CGGradient(
         colorsSpace: space,
-        colors: [colour(0xF0ABFC), colour(0x8B5CF6)] as CFArray,
-        locations: [0, 1]
+        colors: [colour(0xFFD3A3), colour(0xFF8A3D), colour(0xFF5A1F), colour(0xD23F11)] as CFArray,
+        locations: [0, 0.34, 0.70, 1]
     )!
     ctx.drawLinearGradient(
-        tileFill,
-        start: CGPoint(x: tile.minX, y: tile.maxY),
-        end: CGPoint(x: tile.maxX, y: tile.minY),
+        glass,
+        start: CGPoint(x: frame.minX, y: frame.maxY),
+        end: CGPoint(x: frame.maxX, y: frame.minY),
         options: []
     )
     ctx.restoreGState()
 
+    // Mullions: the body colour cut back through the opening.
+    let mullion: CGFloat = 38
+    ctx.setFillColor(colour(0x171211))
+    ctx.fill(CGRect(x: frame.midX - mullion / 2, y: frame.minY, width: mullion, height: frame.height))
+    ctx.fill(CGRect(x: frame.minX, y: frame.midY - mullion / 2, width: frame.width, height: mullion))
+
     // A hairline along the top, the way glass catches light.
-    ctx.setStrokeColor(colour(0xFFFFFF, 0.22))
+    ctx.setStrokeColor(colour(0xFFFFFF, 0.14))
     ctx.setLineWidth(3)
     ctx.addPath(plateShape)
     ctx.strokePath()

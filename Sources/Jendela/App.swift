@@ -25,7 +25,9 @@ struct DesktopTheme: Identifiable, Hashable {
     var secondaryColor: Color { Color(hex: secondaryHex) }
 
     static let templates: [DesktopTheme] = [
-        DesktopTheme(id: "midnight", name: "Midnight Focus", category: "Dark", subtitle: "Deep violet · calm workspace", startHex: 0x1D2B4A, endHex: 0x321432, accentHex: 0xA379FF, secondaryHex: 0xE36A96),
+        // The default, and the app's own colour. The id stays "midnight" so a
+        // settings file that already selected it keeps resolving.
+        DesktopTheme(id: "midnight", name: "Ember Focus", category: "Dark", subtitle: "Warm ember · calm workspace", startHex: 0x1C1512, endHex: 0x3A1C0E, accentHex: 0xFF5A1F, secondaryHex: 0xFFAE6A),
         DesktopTheme(id: "blush", name: "Blush Studio", category: "Cozy", subtitle: "Warm pink · soft cream", startHex: 0x7B2945, endHex: 0xD98E91, accentHex: 0xFF8FB5, secondaryHex: 0xFFE0D5),
         DesktopTheme(id: "aurora", name: "Aurora Glass", category: "Featured", subtitle: "Ocean teal · northern glow", startHex: 0x073C49, endHex: 0x17666F, accentHex: 0x65E6D2, secondaryHex: 0xA8F0FF),
         DesktopTheme(id: "linen", name: "Quiet Linen", category: "Minimal", subtitle: "Warm ivory · editorial", startHex: 0xA08A72, endHex: 0xDED0B9, accentHex: 0xFFF2D8, secondaryHex: 0x6C5848),
@@ -1340,6 +1342,8 @@ final class JendelaAppDelegate: NSObject, NSApplicationDelegate {
         // Menu-bar app: no Dock tile. The Studio window is reached from the
         // menu bar item instead.
         NSApp.setActivationPolicy(.accessory)
+        // Without a main menu, ⌘V and friends never reach any text field.
+        AppMenu.install()
         notchCoordinator = NotchPanelCoordinator(state: state)
         musicIndicatorCoordinator = AmbientMusicIndicatorCoordinator(state: state)
         noteCoordinator = DesktopNoteCoordinator(state: state)

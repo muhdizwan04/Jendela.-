@@ -20,7 +20,7 @@ struct WidgetSnapshot: Codable, Equatable {
     var themeName: String = "Midnight Focus"
     var startHex: UInt32 = 0x1D2B4A
     var endHex: UInt32 = 0x321432
-    var accentHex: UInt32 = 0xA379FF
+    var accentHex: UInt32 = 0xFF5A1F
     var secondaryHex: UInt32 = 0xE36A96
     /// File names inside `PhotoStore.directory`.
     var photos: [String] = []
