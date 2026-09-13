@@ -136,7 +136,7 @@ final class NotchPanelCoordinator {
         guard let screen = targetScreen else { return panel.frame }
         let size = state.notchExpanded
             ? NotchMetrics.expandedSize(for: state.selectedSection,
-                clipboardCount: state.visibleClipboardCount, size: state.notchSize, width: state.hubWidth)
+                clipboardCount: state.visibleClipboardCount, size: state.notchSize, width: state.hubWidth, shelfCount: state.shelfItems.count)
             : NotchMetrics.compactSize(on: screen)
         return NotchMetrics.topAlignedFrame(size, on: screen)
     }
@@ -166,7 +166,7 @@ final class NotchPanelCoordinator {
         let target = NotchMetrics.topAlignedFrame(
             state.notchExpanded
                 ? NotchMetrics.expandedSize(for: state.selectedSection,
-                    clipboardCount: state.visibleClipboardCount, size: state.notchSize, width: state.hubWidth)
+                    clipboardCount: state.visibleClipboardCount, size: state.notchSize, width: state.hubWidth, shelfCount: state.shelfItems.count)
                 : NotchMetrics.compactSize(on: screen),
             on: screen
         )
@@ -205,7 +205,7 @@ final class NotchPanelCoordinator {
                 let settled = NotchMetrics.topAlignedFrame(
                     self.state.notchExpanded
                         ? NotchMetrics.expandedSize(for: self.state.selectedSection,
-                            clipboardCount: self.state.visibleClipboardCount, size: self.state.notchSize, width: self.state.hubWidth)
+                            clipboardCount: self.state.visibleClipboardCount, size: self.state.notchSize, width: self.state.hubWidth, shelfCount: self.state.shelfItems.count)
                         : NotchMetrics.compactSize(on: screen),
                     on: screen
                 )

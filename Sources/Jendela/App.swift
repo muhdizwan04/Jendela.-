@@ -136,6 +136,7 @@ final class JendelaState: ObservableObject {
         case sound = "Sound"
         case discord = "Discord"
         case ai = "AI"
+        case shelf = "Shelf"
 
         var id: String { rawValue }
 
@@ -147,13 +148,15 @@ final class JendelaState: ObservableObject {
             case .sound: "speaker.wave.2"
             case .discord: "bubble.left.and.bubble.right.fill"
             case .ai: "sparkle.magnifyingglass"
+            case .shelf: "tray.full"
+            case .shelf: "tray.full"
             }
         }
 
         /// Natural height of this section's content at the expanded width,
         /// measured from the rendered views. Clipboard grows with its rows
         /// (header + hint = 47, then 38pt rows on 8pt spacing).
-        func contentHeight(clipboardCount: Int) -> CGFloat {
+        func contentHeight(clipboardCount: Int, shelfCount: Int = 0) -> CGFloat {
             switch self {
             case .home: 157
             case .clipboard: 98 + 50 * CGFloat(min(max(clipboardCount, 1), 5))
@@ -161,6 +164,7 @@ final class JendelaState: ObservableObject {
             case .sound: 190
             case .discord: 214
             case .ai: 370
+            case .shelf: 96 + 50 * CGFloat(min(max(shelfCount, 1), 5))
             }
         }
     }
@@ -225,6 +229,33 @@ final class JendelaState: ObservableObject {
 
     func noteChatActivity() { lastChatKeystroke = .now }
 
+    /// Registers the current set and records any the system refused.
+    func applyHotKeys() {
+        let failed = HotKeyCenter.shared.apply(hotKeys) { [weak self] action in
+            self?.perform(action)
+        }
+        rejectedHotKeys = Set(failed)
+    }
+
+    func perform(_ action: HotKeyAction) {
+        switch action {
+        case .toggleHub:
+            toggleHub()
+        case .clipboard:
+            openNotch(.clipboard)
+        case .ai:
+            openNotch(.ai)
+        case .shelf:
+            openNotch(.shelf)
+        case .notes:
+            showNotes()
+        }
+    }
+
+    func setHotKey(_ action: HotKeyAction, to binding: HotKeyBinding) {
+        hotKeys[action] = binding
+    }
+
     enum AmbientStyle: String, CaseIterable, Identifiable {
         case waveform, artwork, title, none
 
@@ -253,6 +284,48 @@ final class JendelaState: ObservableObject {
     }
     /// How many unpinned items to keep. Pinned entries are never evicted.
     @Published var clipboardLimit = 100
+    @Published var hotKeys: [HotKeyAction: HotKeyBinding] = [:] {
+        didSet { if loaded { applyHotKeys() } }
+    }
+    /// Combinations another app already owns, so the UI can say so.
+    @Published private(set) var rejectedHotKeys: Set<HotKeyAction> = []
+
+    @Published private(set) var shelfItems: [ShelfItem] = []
+    @Published var needsOnboarding = false
+
+    func finishOnboarding() {
+        needsOnboarding = false
+        hasOnboarded = true
+    }
+
+    func addToShelf(from providers: [NSItemProvider]) {
+        for provider in providers {
+            _ = provider.loadObject(ofClass: URL.self) { url, _ in
+                guard let url else { return }
+                DispatchQueue.main.async {
+                    MainActor.assumeIsolated { [weak self] in
+                        guard let self, !self.shelfItems.contains(where: { $0.path == url.path }) else { return }
+                        self.shelfItems.insert(ShelfItem.make(url), at: 0)
+                        ShelfStore.save(self.shelfItems)
+                    }
+                }
+            }
+        }
+    }
+
+    func removeFromShelf(_ item: ShelfItem) {
+        shelfItems.removeAll { $0.id == item.id }
+        ShelfStore.save(shelfItems)
+    }
+
+    func clearShelf() {
+        shelfItems = []
+        ShelfStore.save(shelfItems)
+    }
+
+    /// Set once the introduction has been seen, so it never returns.
+    @Published var hasOnboarded = false
+
     @Published var launchAtLogin = false {
         didSet {
             guard loaded, launchAtLogin != LoginItem.isEnabled else { return }
@@ -353,6 +426,7 @@ final class JendelaState: ObservableObject {
         // Trust the system over the settings file: the user may have switched
         // it off in System Settings since last launch.
         launchAtLogin = LoginItem.isEnabled
+        shelfItems = ShelfStore.load()
 
         lastSavedSettings = snapshot()
         loaded = true
@@ -419,6 +493,13 @@ final class JendelaState: ObservableObject {
         clipboardAutoCapture = s.clipboardAutoCapture
         clipboardLimit = s.clipboardLimit
         launchAtLogin = s.launchAtLogin
+        hasOnboarded = s.hasOnboarded
+        needsOnboarding = !s.hasOnboarded
+        var keys: [HotKeyAction: HotKeyBinding] = [:]
+        for action in HotKeyAction.allCases {
+            keys[action] = s.hotKeys[action.rawValue] ?? action.defaultBinding
+        }
+        hotKeys = keys
         skipConcealedClipboard = s.skipConcealedClipboard
         musicProvider = MusicProvider(rawValue: s.musicProvider) ?? .appleMusic
         discordPipEnabled = s.discordPipEnabled
@@ -469,6 +550,8 @@ final class JendelaState: ObservableObject {
             skipConcealedClipboard: skipConcealedClipboard,
             clipboardLimit: clipboardLimit,
             launchAtLogin: launchAtLogin,
+            hasOnboarded: hasOnboarded,
+            hotKeys: Dictionary(uniqueKeysWithValues: hotKeys.map { ($0.key.rawValue, $0.value) }),
             musicProvider: musicProvider.rawValue,
             discordPipEnabled: discordPipEnabled,
             batterySaverMode: batterySaverMode.rawValue,
@@ -1124,6 +1207,12 @@ struct JendelaApp: App {
     var body: some Scene {
         WindowGroup("Jendela Studio", id: JendelaApp.studioWindowID) {
             StudioView(state: delegate.state)
+                .sheet(isPresented: Binding(
+                    get: { delegate.state.needsOnboarding },
+                    set: { delegate.state.needsOnboarding = $0 }
+                )) {
+                    OnboardingView(state: delegate.state)
+                }
                 .frame(minWidth: 1040, minHeight: 700)
                 .preferredColorScheme(.dark)
         }
@@ -1156,6 +1245,7 @@ final class JendelaAppDelegate: NSObject, NSApplicationDelegate {
         discordCoordinator = DiscordOverlayCoordinator(state: state)
         clipboardMonitor = ClipboardMonitor(state: state)
         clipboardMonitor?.start()
+        state.applyHotKeys()
         state.publishWidgetSnapshot()
         notchCoordinator?.show()
         musicIndicatorCoordinator?.show()
@@ -1321,20 +1411,22 @@ enum NotchMetrics {
 
     static func cardHeight(
         for section: JendelaState.NotchSection,
-        clipboardCount: Int
+        clipboardCount: Int,
+        shelfCount: Int = 0
     ) -> CGFloat {
-        menuBarInset + chromeHeight + section.contentHeight(clipboardCount: clipboardCount)
+        menuBarInset + chromeHeight + section.contentHeight(clipboardCount: clipboardCount, shelfCount: shelfCount)
     }
 
     static func expandedSize(
         for section: JendelaState.NotchSection,
         clipboardCount: Int,
         size: JendelaState.NotchSize,
-        width: CGFloat? = nil
+        width: CGFloat? = nil,
+        shelfCount: Int = 0
     ) -> NSSize {
         NSSize(
             width: (width ?? size.expandedWidth).rounded(),
-            height: cardHeight(for: section, clipboardCount: clipboardCount) + shadowInset
+            height: cardHeight(for: section, clipboardCount: clipboardCount, shelfCount: shelfCount) + shadowInset
         )
     }
 
@@ -2302,6 +2394,24 @@ struct SettingsStudioView: View {
                     .labelsHidden()
                     .frame(width: 150)
                 }
+                ControlCard(
+                    title: "Keyboard shortcuts",
+                    subtitle: "Reach the hub without the pointer",
+                    symbol: "command"
+                ) {
+                    ForEach(HotKeyAction.allCases) { action in
+                        HStack {
+                            Text(action.title).font(.system(size: 12))
+                            Spacer()
+                            HotKeyRecorder(action: action, state: state)
+                        }
+                    }
+                    Text("Click a shortcut, then press the keys. Esc cancels. A modifier is required so an ordinary keystroke is never captured.")
+                        .font(.caption2)
+                        .foregroundStyle(.white.opacity(0.38))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
                 SettingsRow(
                     title: "Open at login",
                     detail: LoginItem.deniedByUser
@@ -2425,7 +2535,8 @@ struct NotchPanelView: View {
     private var expandedHeight: CGFloat {
         NotchMetrics.cardHeight(
             for: state.selectedSection,
-            clipboardCount: state.visibleClipboardCount
+            clipboardCount: state.visibleClipboardCount,
+            shelfCount: state.shelfItems.count
         )
     }
 
@@ -2618,6 +2729,8 @@ struct NotchPanelView: View {
             case .music: MusicNotchSection(state: state)
             case .sound: SoundNotchSection(state: state)
             case .discord: DiscordNotchSection(state: state)
+            case .shelf:
+                ShelfNotchSection(state: state)
             case .ai:
                 QuickChatView(client: state.quickChat) { [weak state] focused in
                     state?.chatFocused = focused

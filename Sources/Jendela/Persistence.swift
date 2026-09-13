@@ -15,6 +15,8 @@ struct JendelaSettings: Codable, Equatable {
     var skipConcealedClipboard = true
     var clipboardLimit = 100
     var launchAtLogin = false
+    var hasOnboarded = false
+    var hotKeys: [String: HotKeyBinding] = [:]
     var musicProvider = "Music"
     var discordPipEnabled = true
     var batterySaverMode = "auto"
