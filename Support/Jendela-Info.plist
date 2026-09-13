@@ -26,6 +26,8 @@
 	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Jendela. shows your next meeting in the notch, with a button to join it. Your calendar is read on this Mac and never leaves it.</string>
 	<key>NSAppleEventsUsageDescription</key>
 	<string>Jendela uses Apple Events only when you choose to control Music or Spotify from the notch.</string>
 	<key>LSUIElement</key>

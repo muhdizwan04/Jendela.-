@@ -137,6 +137,7 @@ final class JendelaState: ObservableObject {
         case discord = "Discord"
         case ai = "AI"
         case shelf = "Shelf"
+        case day = "Day"
 
         var id: String { rawValue }
 
@@ -149,6 +150,7 @@ final class JendelaState: ObservableObject {
             case .discord: "bubble.left.and.bubble.right.fill"
             case .ai: "sparkle.magnifyingglass"
             case .shelf: "tray.full"
+            case .day: "calendar.day.timeline.left"
             case .shelf: "tray.full"
             }
         }
@@ -165,6 +167,7 @@ final class JendelaState: ObservableObject {
             case .discord: 214
             case .ai: 370
             case .shelf: 96 + 50 * CGFloat(min(max(shelfCount, 1), 5))
+            case .day: 208
             }
         }
     }
@@ -337,6 +340,10 @@ final class JendelaState: ObservableObject {
     /// Password managers flag their pasteboard items as concealed; honouring
     /// that keeps credentials out of the history entirely.
     @Published var skipConcealedClipboard = true
+    /// Bundle identifiers whose copies are never recorded. Useful for password
+    /// managers that do not mark their pasteboard items as concealed, and for
+    /// anything else you would rather not have a history of.
+    @Published var clipboardExcludedApps: [String] = []
     @Published var musicProvider: MusicProvider = .appleMusic
     @Published var focusMinutes = 25
     @Published private(set) var focusRemaining = 0
@@ -375,6 +382,8 @@ final class JendelaState: ObservableObject {
     let power = PowerMonitor()
     let nowPlaying = NowPlayingMonitor()
     let audio = SystemAudio()
+    let batteries = Batteries()
+    let meetings = Meetings()
 
     private var cancellables = Set<AnyCancellable>()
     private var focusTimer: Timer?
@@ -448,6 +457,8 @@ final class JendelaState: ObservableObject {
         // Re-publish subsystem changes so views observing `state` refresh.
         for publisher in [
             power.objectWillChange.eraseToAnyPublisher(),
+            batteries.objectWillChange.eraseToAnyPublisher(),
+            meetings.objectWillChange.eraseToAnyPublisher(),
             nowPlaying.objectWillChange.eraseToAnyPublisher(),
             audio.objectWillChange.eraseToAnyPublisher()
         ] {
@@ -501,6 +512,7 @@ final class JendelaState: ObservableObject {
         }
         hotKeys = keys
         skipConcealedClipboard = s.skipConcealedClipboard
+        clipboardExcludedApps = s.clipboardExcludedApps
         musicProvider = MusicProvider(rawValue: s.musicProvider) ?? .appleMusic
         discordPipEnabled = s.discordPipEnabled
         batterySaverMode = BatterySaverMode(rawValue: s.batterySaverMode) ?? .auto
@@ -549,6 +561,7 @@ final class JendelaState: ObservableObject {
             clipboardAutoCapture: clipboardAutoCapture,
             skipConcealedClipboard: skipConcealedClipboard,
             clipboardLimit: clipboardLimit,
+            clipboardExcludedApps: clipboardExcludedApps,
             launchAtLogin: launchAtLogin,
             hasOnboarded: hasOnboarded,
             hotKeys: Dictionary(uniqueKeysWithValues: hotKeys.map { ($0.key.rawValue, $0.value) }),
@@ -986,6 +999,12 @@ final class JendelaState: ObservableObject {
             return false
         }
 
+        // Whatever was frontmost is what produced the copy.
+        if let source = NSWorkspace.shared.frontmostApplication?.bundleIdentifier,
+           clipboardExcludedApps.contains(source) {
+            return false
+        }
+
         let text = pasteboard.string(forType: .string)
         let fileURL = pasteboard.string(forType: .fileURL)
         // Resolve the bytes and the type in one read; the old code fetched the
@@ -1060,6 +1079,41 @@ final class JendelaState: ObservableObject {
         pasteboard.setData(data, forType: type)
         selfWrittenChangeCount = pasteboard.changeCount
         // Keep rows still under the pointer after copying.
+    }
+
+    /// Writes the entry as unformatted text, for pasting into somewhere that
+    /// would otherwise inherit fonts and colours.
+    func pastePlain(_ entry: ClipboardEntry) {
+        let text: String
+        switch entry.kind {
+        case .text: text = entry.title
+        case .file: text = entry.title
+        case .image: return   // nothing sensible to paste as plain text
+        }
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
+        selfWrittenChangeCount = pasteboard.changeCount
+    }
+
+    func excludeFrontmostApp() {
+        guard let app = NSWorkspace.shared.frontmostApplication,
+              let id = app.bundleIdentifier,
+              id != Bundle.main.bundleIdentifier,
+              !clipboardExcludedApps.contains(id)
+        else { return }
+        clipboardExcludedApps.append(id)
+    }
+
+    func removeClipboardExclusion(_ id: String) {
+        clipboardExcludedApps.removeAll { $0 == id }
+    }
+
+    /// A readable name for an excluded bundle id, falling back to the id when
+    /// the app is no longer installed.
+    func displayName(forBundleID id: String) -> String {
+        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id) else { return id }
+        return FileManager.default.displayName(atPath: url.path)
     }
 
     func togglePin(_ entry: ClipboardEntry) {
@@ -2438,6 +2492,30 @@ struct SettingsStudioView: View {
                 SettingsRow(title: "Show notch handle", detail: "Draw a small tab under the notch instead of staying invisible", symbol: "rectangle.topthird.inset.filled") {
                     Toggle("", isOn: $state.showNotchHandle).labelsHidden()
                 }
+                SettingsRow(
+                    title: "Never record from…",
+                    detail: state.clipboardExcludedApps.isEmpty
+                        ? "Add an app whose copies should be ignored"
+                        : state.clipboardExcludedApps.map { state.displayName(forBundleID: $0) }
+                            .joined(separator: ", "),
+                    symbol: "eye.slash"
+                ) {
+                    Menu {
+                        Button("Add the frontmost app") { state.excludeFrontmostApp() }
+                        if !state.clipboardExcludedApps.isEmpty {
+                            Divider()
+                            ForEach(state.clipboardExcludedApps, id: \.self) { id in
+                                Button("Remove \(state.displayName(forBundleID: id))") {
+                                    state.removeClipboardExclusion(id)
+                                }
+                            }
+                        }
+                    } label: {
+                        Text("Manage")
+                    }
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
+                }
                 SettingsRow(title: "Skip password copies", detail: "Ignore items marked concealed by password managers", symbol: "lock.fill") {
                     Toggle("", isOn: $state.skipConcealedClipboard).labelsHidden()
                 }
@@ -2696,6 +2774,10 @@ struct NotchPanelView: View {
                 Button {
                     state.selectedSection = section
                     if section == .music { state.refreshNowPlaying() }
+                    if section == .day {
+                        state.batteries.refresh()
+                        state.meetings.refresh()
+                    }
                     // The chat tab no longer pins. `chatFocused` holds the hub
                     // open only while the field actually has focus, so moving
                     // the pointer away still closes it.
@@ -2731,6 +2813,8 @@ struct NotchPanelView: View {
             case .discord: DiscordNotchSection(state: state)
             case .shelf:
                 ShelfNotchSection(state: state)
+            case .day:
+                DayNotchSection(state: state)
             case .ai:
                 QuickChatView(client: state.quickChat) { [weak state] focused in
                     state?.chatFocused = focused
@@ -3101,6 +3185,9 @@ struct ClipboardNotchSection: View {
         .contextMenu {
             Button("Quick Look") { preview = item }
             Button("Copy") { state.pasteClipboard(item) }
+            if item.kind != .image {
+                Button("Copy as plain text") { state.pastePlain(item) }
+            }
             Button(item.pinned ? "Unpin" : "Pin") { state.togglePin(item) }
             Divider()
             Button("Remove", role: .destructive) { state.removeClipboardItem(item) }

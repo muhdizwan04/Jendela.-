@@ -14,6 +14,7 @@ struct JendelaSettings: Codable, Equatable {
     var clipboardAutoCapture = true
     var skipConcealedClipboard = true
     var clipboardLimit = 100
+    var clipboardExcludedApps: [String] = []
     var launchAtLogin = false
     var hasOnboarded = false
     var hotKeys: [String: HotKeyBinding] = [:]
