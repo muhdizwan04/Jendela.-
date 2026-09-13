@@ -813,18 +813,39 @@ final class JendelaState: ObservableObject {
         enabledSections.isEmpty ? NotchSection.allCases : enabledSections
     }
 
+    /// Every section, the enabled ones first in the order they are shown.
+    var orderedSections: [NotchSection] {
+        let enabled = visibleSections
+        return enabled + NotchSection.allCases.filter { !enabled.contains($0) }
+    }
+
     func setSection(_ section: NotchSection, enabled: Bool) {
         var next = visibleSections
         if enabled {
             guard !next.contains(section) else { return }
-            // Keep the canonical order rather than the order they were re-added.
-            next = NotchSection.allCases.filter { next.contains($0) || $0 == section }
+            // Appended rather than slotted back into the built-in order: the
+            // order is the user's to arrange now, and rewriting it here would
+            // quietly undo an arrangement they had set.
+            next.append(section)
         } else {
             guard next.count > 1 else { return }   // always leave one
             next.removeAll { $0 == section }
         }
         enabledSections = next
         if !next.contains(selectedSection) { selectedSection = next[0] }
+    }
+
+    /// Moves a tab so it sits where `target` is. Only enabled tabs have an
+    /// order; dragging a disabled one turns it on at that position.
+    func moveSection(_ section: NotchSection, to target: NotchSection) {
+        guard section != target else { return }
+        var next = visibleSections
+        if !next.contains(section) { next.append(section) }
+        guard let from = next.firstIndex(of: section) else { return }
+        next.remove(at: from)
+        let insertion = next.firstIndex(of: target) ?? next.endIndex
+        next.insert(section, at: insertion)
+        enabledSections = next
     }
 
     var currentTrack: (title: String, artist: String) {
@@ -2336,20 +2357,33 @@ struct InstructionCard: View {
 struct SectionToggle: View {
     @ObservedObject var state: JendelaState
     let section: JendelaState.NotchSection
+    @State private var dragging: JendelaState.NotchSection?
 
     private var enabled: Bool { state.visibleSections.contains(section) }
     /// The last remaining tab cannot be switched off, so it is shown as locked
     /// rather than silently ignoring the click.
     private var locked: Bool { enabled && state.visibleSections.count == 1 }
 
+    /// Where this tab sits in the hub, or nil when it is switched off.
+    private var position: Int? {
+        state.visibleSections.firstIndex(of: section).map { $0 + 1 }
+    }
+
     var body: some View {
         Button {
             state.setSection(section, enabled: !enabled)
         } label: {
             HStack(spacing: 9) {
-                Image(systemName: section.symbol)
-                    .font(.system(size: 12, weight: .semibold))
-                    .frame(width: 18)
+                if let position {
+                    Text("\(position)")
+                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.5))
+                        .frame(width: 14)
+                } else {
+                    Image(systemName: section.symbol)
+                        .font(.system(size: 12, weight: .semibold))
+                        .frame(width: 14)
+                }
                 Text(section.rawValue)
                     .font(.system(size: 12, weight: .medium))
                     .lineLimit(1)
@@ -2369,8 +2403,35 @@ struct SectionToggle: View {
         }
         .buttonStyle(.plain)
         .disabled(locked)
-        .help(locked ? "The hub needs at least one tab" : (enabled ? "Hide from the hub" : "Show in the hub"))
+        .help(locked
+              ? "The hub needs at least one tab"
+              : (enabled ? "Drag to reorder · click to hide from the hub" : "Show in the hub"))
+        .onDrag {
+            dragging = section
+            return NSItemProvider(object: section.rawValue as NSString)
+        }
+        .onDrop(of: [.text], delegate: SectionDropDelegate(state: state, target: section, dragging: $dragging))
     }
+}
+
+/// Reorders on the way past rather than on release, so the tiles shuffle under
+/// the pointer and the arrangement is visible before letting go.
+struct SectionDropDelegate: DropDelegate {
+    let state: JendelaState
+    let target: JendelaState.NotchSection
+    @Binding var dragging: JendelaState.NotchSection?
+
+    func dropEntered(info: DropInfo) {
+        guard let dragging, dragging != target else { return }
+        state.moveSection(dragging, to: target)
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        dragging = nil
+        return true
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? { DropProposal(operation: .move) }
 }
 
 struct NotchStudioView: View {
@@ -2400,11 +2461,11 @@ struct NotchStudioView: View {
                             columns: [GridItem(.adaptive(minimum: 150), spacing: 8)],
                             spacing: 8
                         ) {
-                            ForEach(JendelaState.NotchSection.allCases) { section in
+                            ForEach(state.orderedSections) { section in
                                 SectionToggle(state: state, section: section)
                             }
                         }
-                        Text("The hub keeps at least one tab, and resizes to whichever one is open.")
+                        Text("Drag a tab to change where it sits in the hub. The hub keeps at least one tab, and resizes to whichever one is open.")
                             .font(.caption2)
                             .foregroundStyle(.white.opacity(0.4))
                     }
@@ -3762,6 +3823,10 @@ struct ControlCard<Content: View>: View {
                 .font(.caption)
         }
         .padding(14)
+        // Without this a card shrinks to its content and the enclosing VStack
+        // centres it, so cards with less in them sat inset from the ones above
+        // and below instead of lining up with them.
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(.white.opacity(0.055), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 16, style: .continuous)

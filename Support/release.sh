@@ -123,10 +123,10 @@ ok "Entitlements clean"
 # ------------------------------------------------------------------ packaging
 info "Packaging the disk image"
 STAGE=$(mktemp -d)
-# ditto, not cp: a plain copy carries extended attributes into the bundle, and
-# codesign rejects the result with "resource fork, Finder information, or
-# similar detritus not allowed" — which surfaces as a notarisation failure
-# after the upload rather than here.
+# ditto rather than cp: it reproduces the bundle faithfully, including symlinks
+# and attributes. The staging directory is a temp one, so either would do here —
+# copying a signed app into an iCloud-synced folder is what actually breaks a
+# signature, by stamping com.apple.FinderInfo on it.
 ditto "$APP" "$STAGE/$(basename "$APP")"
 
 # Signing is verified on the copy that actually ships, not the build output.
