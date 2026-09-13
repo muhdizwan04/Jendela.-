@@ -1,0 +1,135 @@
+# WidgetMac
+
+A native, low-energy macOS desktop companion.
+
+## Design rule
+
+**No polling unless macOS gives us no alternative, and every unavoidable timer
+carries a tolerance.** A background app costs battery through CPU *wakeups*, not
+through work, so:
+
+- Music metadata arrives on distributed notifications from Music.app and
+  Spotify — zero polling.
+- Volume, mute and output-device changes arrive on CoreAudio property
+  listeners — zero polling.
+- Low Power Mode, thermal pressure and battery/AC state arrive on system
+  notifications — zero polling.
+- The clipboard is the one exception: macOS publishes no pasteboard-change
+  notification. It is checked on a timer that reads only the change counter,
+  stretches from 1s to 3s to 8s depending on whether the hub is open and
+  whether the machine is conserving, and sets a 50% tolerance so the wakeup is
+  coalesced with other timers rather than waking the CPU on its own.
+- Live blur is used only when not conserving power; the panel falls back to a
+  flat fill otherwise.
+
+`Battery saver` has three modes. **Automatic** (the default) follows Low Power
+Mode, battery vs AC, and thermal state.
+
+## The notch hub
+
+Collapsed it is invisible and exactly the width of the physical notch, with a
+14pt lip hanging below the menu bar — the menu-bar strip and the cut-out itself
+do not reliably deliver mouse events, so that lip is the hover target.
+
+Expanded, it is **one opaque black surface, the same black as the notch**, with
+no material and no border. A tint or a stroked edge is what makes a panel read
+as a separate window hanging below the notch instead of the notch itself
+growing, so neither is used. Its controls are inset below the menu bar for the
+same hit-testing reason.
+
+Which tabs it carries is up to you — Notch Hub › *What the hub shows*. It keeps
+at least one, and resizes to whichever tab is open.
+
+## What works
+
+- The notch hub is the product. Everything else supports it.
+- **A theme can set a real desktop picture** — the gradient is rendered
+  once to a PNG per display and handed to the window server, after which it
+  costs nothing
+- A compact notch hub sized from the **real** notch (`auxiliaryTopLeftArea` /
+  `auxiliaryTopRightArea`), not a percentage of the screen width, so it lines up
+  exactly on any Mac. Collapsed it reads as a slightly deeper notch; it hangs a
+  14pt lip below the menu bar because the menu-bar strip and the notch cut-out
+  do not reliably deliver mouse events, and that lip is the hover target.
+  Expanded, its controls are inset below the menu bar for the same reason.
+  The panel is sized to whichever section is showing, and is pinnable
+- **Hide the notch**, the way TopNotch does it: the menu-bar strip of your
+  desktop picture is painted pure black, so the camera cut-out blends into it.
+  Your own wallpaper is used as the source and aspect-filled exactly as macOS
+  fits it, so nothing is reframed; the original path is remembered and put back
+  when you switch it off. Rendered once to a PNG and handed to the window
+  server, so it costs nothing while it is on
+- Quick Notes rendered at desktop-icon level, behind normal apps (off by
+  default)
+- Clipboard history with search, pinning, click-to-paste and drag-to-copy.
+  Items marked concealed by password managers are skipped. Images over 8 MB are
+  recorded but not stored (truncating them produced a corrupt paste)
+- Real now-playing metadata and transport control for Music and Spotify. If
+  macOS denies Automation, the UI says so instead of showing a state it cannot
+  verify
+- **YouTube Music transport** via the system media keys — it is a web page with
+  no scripting interface, so the media keys (which browsers honour) are the only
+  way to drive it. This needs Accessibility permission; the UI says so when it
+  is missing. Track metadata for YouTube Music is not available without private
+  API, so none is claimed
+- Real system volume, mute and output-device switching
+- A working 25-minute focus timer
+- A menu bar controller, and all settings persist
+
+## Run
+
+```bash
+./run-macos.sh
+```
+
+Builds the package, quits any running instance, refreshes the local `.app`,
+re-signs it so the Automation grant survives rebuilds, and opens it.
+
+## Desktop widgets (WidgetKit)
+
+Four system-managed widgets ship in an embedded extension: **Quick Note**,
+**Clipboard**, **Theme Clock** and **Photo**. Add them from the desktop widget
+gallery
+(right-click the desktop → Edit Widgets → WidgetMac).
+
+They are on WidgetKit rather than custom always-on windows because the system
+then owns their power budget — a widget costs nothing when it is not updating.
+The timeline policy is `.never`: the app writes a snapshot to the App Group
+container and calls `reloadAllTimelines()` only when the content actually
+changes, so the widget process is never woken on a schedule. The clock uses
+`Text(_:style:)`, which WidgetKit renders live without reloading at all.
+
+The Photo widget rotates the same way — as a *timeline*, not a timer. WidgetKit
+gets one entry per picture with the time it should appear and switches them
+itself, so a rotating photo widget costs the same as a static one. Photos are
+copied into the App Group and downscaled to a 1400px long edge once on import,
+so the widget never resizes an image while drawing. Add them under **Photos** in
+the Studio.
+
+Two things are load-bearing and worth knowing before changing them:
+
+- **The widget extension must be sandboxed.** WidgetKit will not register an
+  unsandboxed `.appex` at all — it simply never appears in `pluginkit`.
+- Because it is sandboxed, it cannot read Application Support, so the app and
+  the widget share data through the App Group
+  `FRWW9Y9Y94.com.widgetmac.desktop`.
+
+## Building
+
+`./run-macos.sh` builds through Xcode, because SwiftPM cannot produce an
+`.appex`. The `.xcodeproj` is **generated** by `Support/generate_project.rb` —
+nothing in it is hand-maintained, so re-run that script after adding a source
+file. `swift build` still compiles the app on its own, without widgets.
+
+## Not implemented
+
+Being explicit about what is still a mock:
+
+- **Discord call state.** The camera and share switches drive the mini view
+  manually. Reading real call state requires a registered Discord application
+  and your authorisation through Discord's RPC interface; the app does not
+  inspect your camera or screen in the background. Discord's *running* state is
+  detected and shown.
+- **Icon packs and screen savers.** Gallery previews only; neither changes
+  anything on disk yet.
+- **Icon packs and screen savers** remain gallery previews.
