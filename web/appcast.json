@@ -1,0 +1,10 @@
+{
+  "version": "0.2.0",
+  "build": 2,
+  "url": "https://jendela.app/downloads/Jendela-0.2.0.dmg",
+  "sha256": "replaced-by-Support/release.sh",
+  "size": 0,
+  "minimumSystemVersion": "15.0",
+  "publishedAt": "2026-01-01T00:00:00Z",
+  "notes": "https://jendela.app/changelog.html"
+}

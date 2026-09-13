@@ -121,6 +121,23 @@ Two things are load-bearing and worth knowing before changing them:
 nothing in it is hand-maintained, so re-run that script after adding a source
 file. `swift build` still compiles the app on its own, without widgets.
 
+## Website
+
+`web/` is the landing page: plain HTML and CSS, no build step and no
+third-party scripts, so it can be hosted anywhere and still works with
+JavaScript disabled apart from the version line.
+
+    ./web/serve.sh        # preview at localhost:8080
+
+The download button and version line read `appcast.json` — the same file
+`Support/release.sh` writes and the app checks for updates — so the site
+can never advertise a build that was not actually published. Before a
+release the page says so instead of offering a dead link.
+
+To deploy: upload the contents of `web/` plus the dmg from `dist/` to any
+static host (Cloudflare Pages, Netlify, GitHub Pages). Point
+`DOWNLOAD_BASE` in `Support/release.env` at wherever the dmg lands.
+
 ## Releasing
 
 `./Support/release.sh --check` reports whether a release is possible and
