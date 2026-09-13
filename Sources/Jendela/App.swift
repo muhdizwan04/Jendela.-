@@ -2606,141 +2606,144 @@ struct SettingsStudioView: View {
     var body: some View {
         VStack(spacing: 0) {
             StudioTopBar(title: "Settings", subtitle: "Privacy-first controls for a quiet background app.", state: state)
-            VStack(spacing: 14) {
-                SettingsRow(
-                    title: "Hide the notch",
-                    detail: "Blacks out the menu bar in your desktop picture so the notch disappears",
-                    symbol: "rectangle.topthird.inset.filled"
-                ) {
-                    Toggle("", isOn: Binding(
-                        get: { state.hideNotch },
-                        set: { state.setHideNotch($0) }
-                    )).labelsHidden()
-                }
-                SettingsRow(title: "Show Quick Notes", detail: "Notes stay at desktop level, behind normal apps", symbol: "note.text") {
-                    Toggle("", isOn: $state.noteVisible).labelsHidden()
-                }
-                SettingsRow(title: "Automatic clipboard", detail: "Capture new text, files, and copied screenshots", symbol: "doc.on.clipboard") {
-                    Toggle("", isOn: $state.clipboardAutoCapture).labelsHidden()
-                }
-                SettingsRow(title: "Discord picture-in-picture", detail: "Show a mini call panel after switching apps", symbol: "pip.fill") {
-                    Toggle("", isOn: $state.discordPipEnabled).labelsHidden()
-                }
-                SettingsRow(
-                    title: "Battery saver",
-                    detail: state.batterySaverActive
-                        ? "Conserving — \(state.power.reason)"
-                        : "Automatic follows Low Power Mode, battery and heat",
-                    symbol: "leaf.fill"
-                ) {
-                    Picker("", selection: $state.batterySaverMode) {
-                        ForEach(JendelaState.BatterySaverMode.allCases) { Text($0.label).tag($0) }
+            // Every other pane scrolls; this one did not, so anything past the
+            // window height simply could not be reached.
+            ScrollView {
+                VStack(spacing: 14) {
+                    SettingsRow(
+                        title: "Hide the notch",
+                        detail: "Blacks out the menu bar in your desktop picture so the notch disappears",
+                        symbol: "rectangle.topthird.inset.filled"
+                    ) {
+                        Toggle("", isOn: Binding(
+                            get: { state.hideNotch },
+                            set: { state.setHideNotch($0) }
+                        )).labelsHidden()
                     }
-                    .labelsHidden()
-                    .frame(width: 150)
-                }
-                SettingsRow(
-                    title: "Updates",
-                    detail: updateDetail,
-                    symbol: "arrow.down.circle"
-                ) {
-                    switch state.updates.state {
-                    case .available:
-                        Button("Download") { state.updates.download() }
-                            .buttonStyle(.borderedProminent)
-                            .tint(state.appliedTheme.accentColor)
-                            .controlSize(.small)
-                    case .checking:
-                        ProgressView().controlSize(.small)
-                    default:
-                        Button("Check now") { state.updates.check() }
-                            .buttonStyle(SoftButtonStyle())
-                            .frame(width: 96)
+                    SettingsRow(title: "Show Quick Notes", detail: "Notes stay at desktop level, behind normal apps", symbol: "note.text") {
+                        Toggle("", isOn: $state.noteVisible).labelsHidden()
                     }
-                }
-
-                LicenceCard(state: state)
-
-                ControlCard(
-                    title: "Keyboard shortcuts",
-                    subtitle: "Reach the hub without the pointer",
-                    symbol: "command"
-                ) {
-                    ForEach(HotKeyAction.allCases) { action in
-                        HStack {
-                            Text(action.title).font(.system(size: 12))
-                            Spacer()
-                            HotKeyRecorder(action: action, state: state)
-                        }
+                    SettingsRow(title: "Automatic clipboard", detail: "Capture new text, files, and copied screenshots", symbol: "doc.on.clipboard") {
+                        Toggle("", isOn: $state.clipboardAutoCapture).labelsHidden()
                     }
-                    Text("Click a shortcut, then press the keys. Esc cancels. A modifier is required so an ordinary keystroke is never captured.")
-                        .font(.caption2)
-                        .foregroundStyle(.white.opacity(0.38))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                SettingsRow(
-                    title: "Open at login",
-                    detail: LoginItem.deniedByUser
-                        ? "Turned off in System Settings › Login Items"
-                        : "Start Jendela. automatically",
-                    symbol: "power"
-                ) {
-                    Toggle("", isOn: $state.launchAtLogin).labelsHidden()
-                }
-                SettingsRow(
-                    title: "Clipboard history",
-                    detail: "Kept encrypted on this Mac · \(state.clipboardItems.count) stored",
-                    symbol: "clock.arrow.circlepath"
-                ) {
-                    HStack(spacing: 8) {
-                        Picker("", selection: $state.clipboardLimit) {
-                            ForEach([25, 50, 100, 200], id: \.self) { Text("\($0)").tag($0) }
+                    SettingsRow(title: "Discord picture-in-picture", detail: "Show a mini call panel after switching apps", symbol: "pip.fill") {
+                        Toggle("", isOn: $state.discordPipEnabled).labelsHidden()
+                    }
+                    SettingsRow(
+                        title: "Battery saver",
+                        detail: state.batterySaverActive
+                            ? "Conserving — \(state.power.reason)"
+                            : "Automatic follows Low Power Mode, battery and heat",
+                        symbol: "leaf.fill"
+                    ) {
+                        Picker("", selection: $state.batterySaverMode) {
+                            ForEach(JendelaState.BatterySaverMode.allCases) { Text($0.label).tag($0) }
                         }
                         .labelsHidden()
-                        .frame(width: 76)
-                        Button("Erase") { state.wipeClipboardHistory() }
+                        .frame(width: 150)
                     }
-                }
-                SettingsRow(title: "Show notch handle", detail: "Draw a small tab under the notch instead of staying invisible", symbol: "rectangle.topthird.inset.filled") {
-                    Toggle("", isOn: $state.showNotchHandle).labelsHidden()
-                }
-                SettingsRow(
-                    title: "Never record from…",
-                    detail: state.clipboardExcludedApps.isEmpty
-                        ? "Add an app whose copies should be ignored"
-                        : state.clipboardExcludedApps.map { state.displayName(forBundleID: $0) }
-                            .joined(separator: ", "),
-                    symbol: "eye.slash"
-                ) {
-                    Menu {
-                        Button("Add the frontmost app") { state.excludeFrontmostApp() }
-                        if !state.clipboardExcludedApps.isEmpty {
-                            Divider()
-                            ForEach(state.clipboardExcludedApps, id: \.self) { id in
-                                Button("Remove \(state.displayName(forBundleID: id))") {
-                                    state.removeClipboardExclusion(id)
-                                }
+                    SettingsRow(
+                        title: "Updates",
+                        detail: updateDetail,
+                        symbol: "arrow.down.circle"
+                    ) {
+                        switch state.updates.state {
+                        case .available:
+                            Button("Download") { state.updates.download() }
+                                .buttonStyle(.borderedProminent)
+                                .tint(state.appliedTheme.accentColor)
+                                .controlSize(.small)
+                        case .checking:
+                            ProgressView().controlSize(.small)
+                        default:
+                            Button("Check now") { state.updates.check() }
+                                .buttonStyle(SoftButtonStyle())
+                                .frame(width: 96)
+                        }
+                    }
+
+                    LicenceCard(state: state)
+
+                    ControlCard(
+                        title: "Keyboard shortcuts",
+                        subtitle: "Reach the hub without the pointer",
+                        symbol: "command"
+                    ) {
+                        ForEach(HotKeyAction.allCases) { action in
+                            HStack {
+                                Text(action.title).font(.system(size: 12))
+                                Spacer()
+                                HotKeyRecorder(action: action, state: state)
                             }
                         }
-                    } label: {
-                        Text("Manage")
+                        Text("Click a shortcut, then press the keys. Esc cancels. A modifier is required so an ordinary keystroke is never captured.")
+                            .font(.caption2)
+                            .foregroundStyle(.white.opacity(0.38))
+                            .fixedSize(horizontal: false, vertical: true)
                     }
-                    .menuStyle(.borderlessButton)
-                    .fixedSize()
+
+                    SettingsRow(
+                        title: "Open at login",
+                        detail: LoginItem.deniedByUser
+                            ? "Turned off in System Settings › Login Items"
+                            : "Start Jendela. automatically",
+                        symbol: "power"
+                    ) {
+                        Toggle("", isOn: $state.launchAtLogin).labelsHidden()
+                    }
+                    SettingsRow(
+                        title: "Clipboard history",
+                        detail: "Kept encrypted on this Mac · \(state.clipboardItems.count) stored",
+                        symbol: "clock.arrow.circlepath"
+                    ) {
+                        HStack(spacing: 8) {
+                            Picker("", selection: $state.clipboardLimit) {
+                                ForEach([25, 50, 100, 200], id: \.self) { Text("\($0)").tag($0) }
+                            }
+                            .labelsHidden()
+                            .frame(width: 76)
+                            Button("Erase") { state.wipeClipboardHistory() }
+                        }
+                    }
+                    SettingsRow(title: "Show notch handle", detail: "Draw a small tab under the notch instead of staying invisible", symbol: "rectangle.topthird.inset.filled") {
+                        Toggle("", isOn: $state.showNotchHandle).labelsHidden()
+                    }
+                    SettingsRow(
+                        title: "Never record from…",
+                        detail: state.clipboardExcludedApps.isEmpty
+                            ? "Add an app whose copies should be ignored"
+                            : state.clipboardExcludedApps.map { state.displayName(forBundleID: $0) }
+                                .joined(separator: ", "),
+                        symbol: "eye.slash"
+                    ) {
+                        Menu {
+                            Button("Add the frontmost app") { state.excludeFrontmostApp() }
+                            if !state.clipboardExcludedApps.isEmpty {
+                                Divider()
+                                ForEach(state.clipboardExcludedApps, id: \.self) { id in
+                                    Button("Remove \(state.displayName(forBundleID: id))") {
+                                        state.removeClipboardExclusion(id)
+                                    }
+                                }
+                            }
+                        } label: {
+                            Text("Manage")
+                        }
+                        .menuStyle(.borderlessButton)
+                        .fixedSize()
+                    }
+                    SettingsRow(title: "Skip password copies", detail: "Ignore items marked concealed by password managers", symbol: "lock.fill") {
+                        Toggle("", isOn: $state.skipConcealedClipboard).labelsHidden()
+                    }
+                    SettingsRow(title: "Theme sets desktop picture", detail: "Applying a theme renders and sets a matching wallpaper", symbol: "photo.fill") {
+                        Toggle("", isOn: Binding(
+                            get: { state.syncWallpaperWithTheme },
+                            set: { state.syncWallpaperWithTheme = $0; state.refreshWallpaper() }
+                            )).labelsHidden()
+                    }
                 }
-                SettingsRow(title: "Skip password copies", detail: "Ignore items marked concealed by password managers", symbol: "lock.fill") {
-                    Toggle("", isOn: $state.skipConcealedClipboard).labelsHidden()
-                }
-                SettingsRow(title: "Theme sets desktop picture", detail: "Applying a theme renders and sets a matching wallpaper", symbol: "photo.fill") {
-                    Toggle("", isOn: Binding(
-                        get: { state.syncWallpaperWithTheme },
-                        set: { state.syncWallpaperWithTheme = $0; state.refreshWallpaper() }
-                    )).labelsHidden()
-                }
-                Spacer()
+                .padding(26)
             }
-            .padding(26)
         }
     }
 }
