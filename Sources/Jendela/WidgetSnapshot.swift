@@ -17,11 +17,11 @@ struct WidgetSnapshot: Codable, Equatable {
 
     var note: String = ""
     var clips: [Clip] = []
-    var themeName: String = "Midnight Focus"
-    var startHex: UInt32 = 0x1D2B4A
-    var endHex: UInt32 = 0x321432
+    var themeName: String = "Ember Focus"
+    var startHex: UInt32 = 0x1C1512
+    var endHex: UInt32 = 0x3A1C0E
     var accentHex: UInt32 = 0xFF5A1F
-    var secondaryHex: UInt32 = 0xE36A96
+    var secondaryHex: UInt32 = 0xFFAE6A
     /// File names inside `PhotoStore.directory`.
     var photos: [String] = []
     /// How long each photo stays up before the next. The rotation is baked into
@@ -54,22 +54,37 @@ enum PhotoStore {
         return url
     }
 
-    static func url(for name: String) -> URL {
-        directory.appendingPathComponent(name)
+    /// Resolves a stored photo name, or nil if it is not one.
+    ///
+    /// Names are UUIDs when written, but they go out to the settings file and
+    /// the shared snapshot and come back again. Anything that is not a single
+    /// file name is refused, so a hand-edited list cannot point `remove` at a
+    /// file outside this directory.
+    static func url(for name: String) -> URL? {
+        guard !name.isEmpty, !name.hasPrefix("."),
+              !name.contains("/"), !name.contains("\\"),
+              name == (name as NSString).lastPathComponent
+        else { return nil }
+        return directory.appendingPathComponent(name)
     }
 
     static func image(named name: String) -> NSImage? {
-        NSImage(contentsOf: url(for: name))
+        guard let url = url(for: name) else { return nil }
+        return NSImage(contentsOf: url)
     }
 
     /// Drops names whose files are gone, so a deleted photo cannot leave the
     /// widget pointing at nothing.
     static func existing(_ names: [String]) -> [String] {
-        names.filter { FileManager.default.fileExists(atPath: url(for: $0).path) }
+        names.filter { name in
+            guard let url = url(for: name) else { return false }
+            return FileManager.default.fileExists(atPath: url.path)
+        }
     }
 
     static func remove(_ name: String) {
-        try? FileManager.default.removeItem(at: url(for: name))
+        guard let url = url(for: name) else { return }
+        try? FileManager.default.removeItem(at: url)
     }
 
     /// Copies a chosen photo in, downscaled and re-encoded as JPEG.
@@ -105,8 +120,9 @@ enum PhotoStore {
         else { return nil }
 
         let name = UUID().uuidString + ".jpg"
+        guard let destination = url(for: name) else { return nil }
         do {
-            try data.write(to: url(for: name), options: .atomic)
+            try data.write(to: destination, options: .atomic)
             return name
         } catch {
             return nil

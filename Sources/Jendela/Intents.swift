@@ -35,6 +35,10 @@ struct OpenClipboardIntent: AppIntent {
 struct LatestClipboardIntent: AppIntent {
     static let title: LocalizedStringResource = "Get latest copied text"
     static let description = IntentDescription("Returns the most recent text from the clipboard history.")
+    // The history lives in the running app. Without this the action returned an
+    // empty string whenever Jendela happened not to be running, which in a
+    // Shortcut is a wrong answer rather than a failure.
+    static let openAppWhenRun = true
 
     @MainActor func perform() async throws -> some IntentResult & ReturnsValue<String> {
         let text = app()?.clipboardItems.first(where: { $0.kind == .text })?.title ?? ""
@@ -67,6 +71,9 @@ struct ShowShelfIntent: AppIntent {
 struct StartFocusIntent: AppIntent {
     static let title: LocalizedStringResource = "Start or stop focus timer"
     static let description = IntentDescription("Toggles Jendela's focus timer.")
+    // The timer lives in the app, so without this the action silently did
+    // nothing whenever Jendela happened not to be running.
+    static let openAppWhenRun = true
 
     @MainActor func perform() async throws -> some IntentResult {
         app()?.toggleFocus()
