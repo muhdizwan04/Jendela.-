@@ -153,7 +153,6 @@ final class JendelaState: ObservableObject {
             case .ai: "sparkle.magnifyingglass"
             case .shelf: "tray.full"
             case .day: "calendar.day.timeline.left"
-            case .shelf: "tray.full"
             }
         }
 
@@ -1131,8 +1130,7 @@ final class JendelaState: ObservableObject {
     }
 
     @discardableResult
-    func captureClipboardIfChanged() -> Bool {
-        let pasteboard = NSPasteboard.general
+    func captureClipboardIfChanged(from pasteboard: NSPasteboard = .general) -> Bool {
 
         if skipConcealedClipboard,
            let types = pasteboard.types,
@@ -1146,12 +1144,26 @@ final class JendelaState: ObservableObject {
             return false
         }
 
-        let text = pasteboard.string(forType: .string)
-        let fileURL = pasteboard.string(forType: .fileURL)
+        let pngData = pasteboard.data(forType: .png)
+        return captureClipboardValue(
+            text: pasteboard.string(forType: .string),
+            fileURL: pasteboard.string(forType: .fileURL),
+            imageData: pngData ?? pasteboard.data(forType: .tiff),
+            imageIsPNG: pngData != nil,
+            sourceBundleID: NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+        )
+    }
+
+    /// Pure capture path for tests and extensions that already decoded a
+    /// pasteboard. Keeping entry creation independent from WindowServer makes
+    /// clipboard behavior testable in CI and avoids touching the user's board.
+    @discardableResult
+    func captureClipboardValue(text: String?, fileURL: String? = nil,
+                               imageData: Data? = nil, imageIsPNG: Bool = false,
+                               sourceBundleID: String? = nil) -> Bool {
+        if let sourceBundleID, clipboardExcludedApps.contains(sourceBundleID) { return false }
         // Resolve the bytes and the type in one read; the old code fetched the
         // image a second time purely to decide which type it was.
-        let png = pasteboard.data(forType: .png)
-        let imageData = png ?? pasteboard.data(forType: .tiff)
         let entry: ClipboardEntry?
 
         if let fileURL, !fileURL.isEmpty {
@@ -1173,7 +1185,7 @@ final class JendelaState: ObservableObject {
                 title: tooBig ? "Image too large to keep" : "Screenshot / image",
                 subtitle: tooBig ? "\(size) · over the 8 MB limit" : "Copied image · \(size)",
                 data: tooBig ? nil : imageData,
-                pasteboardType: tooBig ? nil : (png != nil ? .png : .tiff)
+                pasteboardType: tooBig ? nil : (imageIsPNG ? .png : .tiff)
             )
         } else if let text, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             entry = ClipboardEntry(
@@ -1213,10 +1225,10 @@ final class JendelaState: ObservableObject {
         clipboardItems = kept
     }
 
-    func pasteClipboard(_ entry: ClipboardEntry) {
+    func pasteClipboard(_ entry: ClipboardEntry, to pasteboard: NSPasteboard = .general) {
         guard let type = entry.pasteboardType, let data = entry.data else { return }
-        let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
+        pasteboard.declareTypes([type], owner: nil)
         pasteboard.setData(data, forType: type)
         selfWrittenChangeCount = pasteboard.changeCount
         // Keep rows still under the pointer after copying.
@@ -1224,15 +1236,17 @@ final class JendelaState: ObservableObject {
 
     /// Writes the entry as unformatted text, for pasting into somewhere that
     /// would otherwise inherit fonts and colours.
-    func pastePlain(_ entry: ClipboardEntry) {
-        let text: String
+    static func plainPasteText(for entry: ClipboardEntry) -> String? {
         switch entry.kind {
-        case .text: text = entry.title
-        case .file: text = entry.title
-        case .image: return   // nothing sensible to paste as plain text
+        case .text, .file: return entry.title
+        case .image: return nil
         }
-        let pasteboard = NSPasteboard.general
+    }
+
+    func pastePlain(_ entry: ClipboardEntry, to pasteboard: NSPasteboard = .general) {
+        guard let text = Self.plainPasteText(for: entry) else { return }
         pasteboard.clearContents()
+        pasteboard.declareTypes([.string], owner: nil)
         pasteboard.setString(text, forType: .string)
         selfWrittenChangeCount = pasteboard.changeCount
     }
@@ -1478,6 +1492,8 @@ final class JendelaAppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         state.quickChat.shutdown()
+        ClipboardStore.flush()
+        SettingsStore.flush()
     }
 
     func toggleNotch() {
@@ -1500,7 +1516,8 @@ final class ClipboardMonitor: NSObject {
     private var timer: Timer?
     private var cancellables = Set<AnyCancellable>()
     private var lastChangeCount = NSPasteboard.general.changeCount
-    private var currentInterval: TimeInterval = 0
+    /// Readable so a test can see the poll rate actually changed.
+    private(set) var currentInterval: TimeInterval = 0
 
     /// macOS has no pasteboard-change notification, so this is the one place
     /// the app must poll. The cost is kept negligible three ways: the check is
@@ -1519,7 +1536,20 @@ final class ClipboardMonitor: NSObject {
     }
 
     func start() {
-        state.objectWillChange
+        state.$clipboardAutoCapture
+            .combineLatest(state.$notchExpanded)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.reschedule() }
+            .store(in: &cancellables)
+        // `conserving` also reads the Battery saver setting. Without this,
+        // switching it between Always on and Off left the poll at the old rate
+        // until the notch next opened or closed.
+        state.$batterySaverMode
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.reschedule() }
+            .store(in: &cancellables)
+        // Conservation can change without a JendelaState property changing.
+        state.power.objectWillChange
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.reschedule() }
             .store(in: &cancellables)

@@ -62,6 +62,8 @@ at least one, and resizes to whichever tab is open.
 - Quick Notes rendered at desktop-icon level, behind normal apps (off by
   default)
 - Clipboard history with search, pinning, click-to-paste and drag-to-copy.
+  History is AES-GCM encrypted with a device secret stored in Keychain (with a
+  protected local fallback when Keychain is unavailable).
   Items marked concealed by password managers are skipped. Images over 8 MB are
   recorded but not stored (truncating them produced a corrupt paste)
 - Real now-playing metadata and transport control for Music and Spotify. If
@@ -73,6 +75,11 @@ at least one, and resizes to whichever tab is open.
   is missing. Track metadata for YouTube Music is not available without private
   API, so none is claimed
 - Real system volume, mute and output-device switching
+- **Quick AI in the notch** through the supported Codex app-server protocol,
+  with ChatGPT sign-in, streamed answers, and Ask/Rewrite/Summarize modes. It
+  has no tools, web search, or write access; it never reads the clipboard
+  automatically. Optional conversation history is encrypted on this Mac and
+  can be disabled or cleared from the AI menu
 - A working 25-minute focus timer
 - A menu bar controller, and all settings persist
 
@@ -145,6 +152,10 @@ The download button and version line read `appcast.json` — the same file
 `Support/release.sh` writes and the app checks for updates — so the site
 can never advertise a build that was not actually published. Before a
 release the page says so instead of offering a dead link.
+
+The app rejects non-HTTPS downloads, cross-host redirects in the manifest,
+invalid build metadata, and malformed optional SHA-256/size fields before it
+offers an update.
 
 To deploy: upload the contents of `web/` plus the dmg from `dist/` to any
 static host (Cloudflare Pages, Netlify, GitHub Pages). Point
@@ -244,4 +255,3 @@ Being explicit about what is still a mock:
   detected and shown.
 - **Icon packs and screen savers.** Gallery previews only; neither changes
   anything on disk yet.
-- **Icon packs and screen savers** remain gallery previews.

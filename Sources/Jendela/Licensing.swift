@@ -11,7 +11,7 @@ import Foundation
 @MainActor
 final class Licensing: ObservableObject {
     /// The matching private key is held by the seller and never ships.
-    nonisolated(unsafe) private static let publicKeyBase64 = "ftUfWMYrQxdmziN9wWF+r3BovOuxkkE397fF1kSdRWQ="
+    nonisolated private static let publicKeyBase64 = "ftUfWMYrQxdmziN9wWF+r3BovOuxkkE397fF1kSdRWQ="
 
     static let trialDays = 14
     private static let service = "com.jendela.desktop"

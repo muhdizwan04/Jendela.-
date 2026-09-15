@@ -87,8 +87,11 @@ enum SettingsStore {
         return decoded
     }
 
-    /// Blocks until pending writes land. Tests need this; nothing else should.
-    static func flushForTesting() { queue.sync {} }
+    /// Blocks until pending writes land. Used before termination and by tests.
+    static func flush() { queue.sync {} }
+
+    @available(*, deprecated, renamed: "flush()")
+    static func flushForTesting() { flush() }
 
     /// Off the main thread — settings are saved on a debounce, never in a hot path.
     static func save(_ settings: JendelaSettings) {

@@ -66,6 +66,21 @@ final class InteractionTests: XCTestCase {
         XCTAssertTrue(client.messages.isEmpty)
     }
 
+    @MainActor func testQuickChatHistoryIsEncryptedAndRoundTrips() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("jendela-history-test-\(UUID())", isDirectory: true)
+        let conversation = QuickChatClient.Conversation(
+            id: UUID(), title: "Private question", date: .now,
+            messages: [.init(role: "user", text: "secret-value"),
+                       .init(role: "assistant", text: "private-answer")]
+        )
+        XCTAssertTrue(QuickChatHistoryStore.save([conversation], in: directory))
+        let raw = try Data(contentsOf: QuickChatHistoryStore.dataURL(in: directory))
+        XCTAssertNil(raw.range(of: Data("secret-value".utf8)))
+        XCTAssertEqual(QuickChatHistoryStore.load(in: directory).first?.title, "Private question")
+        QuickChatHistoryStore.wipe(in: directory)
+    }
+
     /// A deleted note used to come back: ordering its window out made it resign
     /// key, and the resign handler re-showed it. Guards against a duplicate.
     @MainActor func testDeletedNoteDoesNotComeBack() {

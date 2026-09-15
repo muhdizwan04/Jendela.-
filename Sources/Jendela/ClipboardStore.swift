@@ -17,9 +17,8 @@ enum ClipboardStore {
     static let maxImageBytes = 8_000_000
 
     private static let keychainAccount = "clipboard-history-key"
-    private static let keychainService = "com.jendela.desktop"
 
-    private static var fileURL: URL {
+    static var storageURL: URL {
         let base = SupportDirectory.root
         try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
         return base.appendingPathComponent("clipboard.dat")
@@ -42,53 +41,11 @@ enum ClipboardStore {
     /// `kSecUseDataProtectionKeychain` uses the team-scoped keychain instead,
     /// which survives re-signing and never prompts.
     private static func key() -> SymmetricKey? {
-        let base: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: keychainService,
-            kSecAttrAccount as String: keychainAccount,
-            kSecUseDataProtectionKeychain as String: true
-        ]
-
-        var read = base
-        read[kSecReturnData as String] = true
-        var item: CFTypeRef?
-        if SecItemCopyMatching(read as CFDictionary, &item) == errSecSuccess,
-           let data = item as? Data {
-            keychainUnavailable = false
-            return SymmetricKey(data: data)
-        }
-
-        SecItemDelete(base as CFDictionary)
-        let fresh = SymmetricKey(size: .bits256)
-        var insert = base
-        insert[kSecValueData as String] = fresh.withUnsafeBytes { Data($0) }
-        insert[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-        if SecItemAdd(insert as CFDictionary, nil) == errSecSuccess {
-            keychainUnavailable = false
-            return fresh
-        }
-
-        // No keychain available to us at all (unsigned build, missing
-        // entitlement). Fall back to a key file readable only by this user, so
-        // history still persists; it is a weaker guarantee than the keychain
-        // and is the reason `keychainUnavailable` is surfaced.
-        keychainUnavailable = true
-        return fileKey()
-    }
-
-    private static var keyFileURL: URL { SupportDirectory.root.appendingPathComponent("clipboard.key") }
-
-    private static func fileKey() -> SymmetricKey? {
-        let manager = FileManager.default
-        if let data = try? Data(contentsOf: keyFileURL), data.count == 32 {
-            return SymmetricKey(data: data)
-        }
-        let fresh = SymmetricKey(size: .bits256)
-        let raw = fresh.withUnsafeBytes { Data($0) }
-        guard (try? raw.write(to: keyFileURL, options: [.atomic, .completeFileProtection])) != nil
-        else { return nil }
-        try? manager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: keyFileURL.path)
-        return fresh
+        guard let resolution = DeviceSecret.resolve(
+            account: keychainAccount, fallbackFileName: "clipboard.key"
+        ) else { return nil }
+        keychainUnavailable = !resolution.protectedByKeychain
+        return resolution.key
     }
 
     // MARK: - Codable form
@@ -121,7 +78,7 @@ enum ClipboardStore {
 
     static func load() -> [ClipboardEntry] {
         guard let key = key(),
-              let blob = try? Data(contentsOf: fileURL),
+              let blob = try? Data(contentsOf: storageURL),
               let box = try? AES.GCM.SealedBox(combined: blob),
               let plain = try? AES.GCM.open(box, using: key),
               let rows = try? JSONDecoder().decode([Stored].self, from: plain)
@@ -168,7 +125,7 @@ enum ClipboardStore {
             )
         }
 
-        let url = fileURL
+        let url = storageURL
         queue.async {
             guard let key = key(),
                   let plain = try? JSONEncoder().encode(rows),
@@ -183,6 +140,6 @@ enum ClipboardStore {
     static func flush() { queue.sync {} }
 
     static func wipe() {
-        try? FileManager.default.removeItem(at: fileURL)
+        try? FileManager.default.removeItem(at: storageURL)
     }
 }

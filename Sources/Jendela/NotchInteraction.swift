@@ -286,17 +286,25 @@ extension NSRect {
     /// A window only needs enough of itself on screen to be grabbed, so a
     /// deliberately half-off-screen position is left alone.
     func nudgedOntoScreen(minimumVisible: CGSize = CGSize(width: 120, height: 60)) -> NSRect {
-        let screens = NSScreen.screens
+        let screens = NSScreen.screens.map(\.visibleFrame)
+        return nudgedOntoScreen(in: screens, preferred: NSScreen.main?.visibleFrame,
+                               minimumVisible: minimumVisible)
+    }
+
+    /// Geometry-only overload used by tests and by callers that already have a
+    /// display snapshot. It behaves identically without requiring WindowServer.
+    func nudgedOntoScreen(in screens: [NSRect], preferred: NSRect? = nil,
+                          minimumVisible: CGSize = CGSize(width: 120, height: 60)) -> NSRect {
         guard !screens.isEmpty else { return self }
 
         let reachable = screens.contains { screen in
-            let overlap = screen.visibleFrame.intersection(self)
+            let overlap = screen.intersection(self)
             return overlap.width >= Swift.min(minimumVisible.width, width)
                 && overlap.height >= Swift.min(minimumVisible.height, height)
         }
         if reachable { return self }
 
-        let target = (NSScreen.main ?? screens[0]).visibleFrame
+        let target = preferred ?? screens[0]
         var rect = self
         rect.size.width = Swift.min(width, target.width)
         rect.size.height = Swift.min(height, target.height)

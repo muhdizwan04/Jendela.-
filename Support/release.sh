@@ -34,6 +34,17 @@ SIGN_IDENTITY="${SIGN_IDENTITY:-}"
 NOTARY_PROFILE="${NOTARY_PROFILE:-}"
 DOWNLOAD_BASE="${DOWNLOAD_BASE:-https://example.invalid/downloads}"
 
+# Installed copies accept an update only over https and only from the host the
+# feed is served from (Updates.parse). A dmg uploaded anywhere else would be
+# refused by every one of them, and the update check would only say the feed
+# could not be read — so this is caught here, before anything is uploaded.
+FEED_HOST="jendela.app"
+DOWNLOAD_HOST="${${DOWNLOAD_BASE#https://}%%/*}"
+if [[ "$DOWNLOAD_BASE" != https://* || "$DOWNLOAD_HOST" != "$FEED_HOST" ]]; then
+  message="DOWNLOAD_BASE must be https://$FEED_HOST/…, or installed copies will refuse the update (got $DOWNLOAD_BASE)"
+  if [[ $CHECK_ONLY == 1 ]]; then warn "$message"; else fail "$message"; fi
+fi
+
 # ------------------------------------------------------------------- preflight
 info "Preflight"
 

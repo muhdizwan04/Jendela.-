@@ -44,19 +44,20 @@ final class ClipboardPrivacyTests: XCTestCase {
         }
         state.clipboardExcludedApps = [front]
 
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString("must-not-be-recorded", forType: .string)
-
-        XCTAssertFalse(state.captureClipboardIfChanged(), "copies from an excluded app must be ignored")
+        XCTAssertFalse(state.captureClipboardValue(text: "must-not-be-recorded", sourceBundleID: front), "copies from an excluded app must be ignored")
         XCTAssertTrue(state.clipboardItems.isEmpty)
     }
 
     @MainActor func testPlainTextPasteDropsFormatting() {
-        let state = JendelaState()
         let entry = ClipboardEntry(kind: .text, title: "hello world", subtitle: "t",
                                    data: Data("hello world".utf8), pasteboardType: .string)
-        state.pastePlain(entry)
-        XCTAssertEqual(NSPasteboard.general.string(forType: .string), "hello world")
-        XCTAssertNil(NSPasteboard.general.data(forType: .rtf), "no rich text should be written")
+        XCTAssertEqual(JendelaState.plainPasteText(for: entry), "hello world")
+        let state = JendelaState()
+        let board = NSPasteboard(name: .init("JendelaPlainPaste.\(UUID())"))
+        defer { board.releaseGlobally() }
+        state.pastePlain(entry, to: board)
+        XCTAssertEqual(board.string(forType: .string), "hello world")
+        XCTAssertNil(board.data(forType: .rtf), "no rich text should be written")
+        XCTAssertNil(JendelaState.plainPasteText(for: ClipboardEntry(kind: .image, title: "image", subtitle: "t", data: nil, pasteboardType: nil)))
     }
 }

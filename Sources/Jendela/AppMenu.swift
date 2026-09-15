@@ -7,10 +7,16 @@ import AppKit
 /// equivalents — so without this, pasting into the clipboard search, the chat
 /// field or a note silently does nothing. The menu is never displayed; it
 /// exists purely so those keystrokes have somewhere to land.
+@MainActor
 enum AppMenu {
     static func install() {
         guard NSApp.mainMenu == nil else { return }
+        NSApp.mainMenu = make()
+    }
 
+    /// Pure construction keeps shortcut verification independent from the
+    /// process-wide NSApplication singleton and responder chain.
+    static func make() -> NSMenu {
         let main = NSMenu()
 
         // An application menu has to exist for the ones after it to work.
@@ -31,7 +37,7 @@ enum AppMenu {
             ("Cut", #selector(NSText.cut(_:)), "x", .command),
             ("Copy", #selector(NSText.copy(_:)), "c", .command),
             ("Paste", #selector(NSText.paste(_:)), "v", .command),
-            ("Paste and Match Style", Selector(("pasteAsPlainText:")), "v", [.command, .option, .shift]),
+            ("Paste and Match Style", #selector(NSTextView.pasteAsPlainText(_:)), "v", [.command, .option, .shift]),
             ("Delete", #selector(NSText.delete(_:)), "", []),
             ("Select All", #selector(NSText.selectAll(_:)), "a", .command),
         ]
@@ -47,7 +53,7 @@ enum AppMenu {
         editItem.submenu = edit
         main.addItem(editItem)
 
-        NSApp.mainMenu = main
+        return main
     }
 
     /// Hands over to an instance that is already running, and exits.

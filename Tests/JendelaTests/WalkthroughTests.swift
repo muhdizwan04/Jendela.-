@@ -26,7 +26,7 @@ final class WalkthroughTests: XCTestCase {
     }
 
     @MainActor func test02_EverySectionHasHeightAndContent() throws {
-        let screen = try XCTUnwrap(NSScreen.main)
+        guard let screen = NSScreen.main else { throw XCTSkip("No GUI screen in this test runner") }
         for section in JendelaState.NotchSection.allCases {
             let size = NotchMetrics.expandedSize(
                 for: section, clipboardCount: 5, size: .standard, width: 438, shelfCount: 3
@@ -58,17 +58,12 @@ final class WalkthroughTests: XCTestCase {
         state.clipboardItems = []
         state.clipboardExcludedApps = []
 
-        let board = NSPasteboard.general
-        board.clearContents()
-        board.setString("walkthrough text", forType: .string)
-        XCTAssertTrue(state.captureClipboardIfChanged())
+        XCTAssertTrue(state.captureClipboardValue(text: "walkthrough text"))
         XCTAssertEqual(state.clipboardItems.first?.kind, .text)
 
-        board.clearContents()
         let image = NSImage(size: NSSize(width: 4, height: 4))
         image.lockFocus(); NSColor.red.drawSwatch(in: NSRect(x: 0, y: 0, width: 4, height: 4)); image.unlockFocus()
-        board.setData(image.tiffRepresentation, forType: .tiff)
-        XCTAssertTrue(state.captureClipboardIfChanged())
+        XCTAssertTrue(state.captureClipboardValue(text: nil, imageData: image.tiffRepresentation))
         XCTAssertEqual(state.clipboardItems.first?.kind, .image)
     }
 
@@ -79,9 +74,13 @@ final class WalkthroughTests: XCTestCase {
                            data: Data("item\($0)".utf8), pasteboardType: .string)
         }
         let third = state.clipboardItems[2]
-        state.pasteClipboard(third)
+        // The real write path, on a private pasteboard so the test cannot
+        // clobber the clipboard of whoever is running it.
+        let board = NSPasteboard(name: .init("JendelaWalkthrough.paste.\(UUID())"))
+        defer { board.releaseGlobally() }
+        state.pasteClipboard(third, to: board)
         XCTAssertEqual(state.clipboardItems.count, 4, "pasting must not add a duplicate")
-        XCTAssertEqual(NSPasteboard.general.string(forType: .string), "item3",
+        XCTAssertEqual(board.string(forType: .string), "item3",
                        "the chosen entry must reach the pasteboard")
         // The list deliberately does not reorder: rows must not jump out from
         // under the pointer in a hover-driven UI.
@@ -100,7 +99,9 @@ final class WalkthroughTests: XCTestCase {
                 kind: .text, title: "filler\(i)", subtitle: "t",
                 data: Data("filler\(i)".utf8), pasteboardType: .string))
         }
-        state.captureClipboard()
+        let board = NSPasteboard(name: .init("JendelaWalkthrough.\(UUID())"))
+        board.clearContents(); board.declareTypes([.string], owner: nil); board.setString("trim-trigger", forType: .string)
+        _ = state.captureClipboardIfChanged(from: board)
         XCTAssertTrue(state.clipboardItems.contains { $0.pinned && $0.title == "keep-me" },
                       "a pinned entry was evicted")
 
@@ -219,7 +220,7 @@ final class WalkthroughTests: XCTestCase {
         // Go through the real save/load path, not a bare encoder: the
         // forward-compatibility merge lives there.
         SettingsStore.save(state.settingsSnapshotForTesting())
-        SettingsStore.flushForTesting()
+        SettingsStore.flush()
         let decoded = SettingsStore.load()
         XCTAssertEqual(decoded.hubWidth, 512)
         XCTAssertEqual(decoded.clipboardLimit, 200)
@@ -250,7 +251,7 @@ final class SettingsDriftTests: XCTestCase {
         settings.enabledSections = ["Home", "Clipboard"]
 
         SettingsStore.save(settings)
-        SettingsStore.flushForTesting()
+        SettingsStore.flush()
         XCTAssertEqual(SettingsStore.load(), settings, "a field was lost between save and load")
     }
 

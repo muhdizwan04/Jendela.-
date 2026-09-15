@@ -18,6 +18,8 @@ final class Updates: ObservableObject {
         var notes: String?
         var minimumSystem: String?
         var publishedAt: Date?
+        var sha256: String?
+        var size: Int?
     }
 
     enum State: Equatable {
@@ -78,8 +80,10 @@ final class Updates: ObservableObject {
                         self.state = .failed(error.localizedDescription)
                         return
                     }
-                    guard let data,
-                          let release = Updates.parse(data)
+                    guard let http = response as? HTTPURLResponse,
+                          (200..<300).contains(http.statusCode), let data,
+                          let host = url.host,
+                          let release = Updates.parse(data, allowedHosts: [host])
                     else {
                         self.state = .failed("The update feed could not be read.")
                         return
@@ -97,7 +101,7 @@ final class Updates: ObservableObject {
 
     // MARK: - Parsing and comparison
 
-    static func parse(_ data: Data) -> Release? {
+    static func parse(_ data: Data, allowedHosts: Set<String> = ["jendela.app"]) -> Release? {
         struct Manifest: Decodable {
             var version: String
             var build: Int
@@ -105,9 +109,17 @@ final class Updates: ObservableObject {
             var notes: String?
             var minimumSystemVersion: String?
             var publishedAt: String?
+            var sha256: String?
+            var size: Int?
         }
         guard let manifest = try? JSONDecoder().decode(Manifest.self, from: data),
-              let url = URL(string: manifest.url)
+              let url = URL(string: manifest.url), url.scheme == "https",
+              let host = url.host?.lowercased(), allowedHosts.contains(host),
+              manifest.build >= 0,
+              manifest.sha256 == nil || manifest.sha256?.range(
+                of: "^[a-fA-F0-9]{64}$", options: .regularExpression
+              ) != nil,
+              manifest.size == nil || (manifest.size ?? 0) >= 0
         else { return nil }
 
         return Release(
@@ -118,7 +130,9 @@ final class Updates: ObservableObject {
             minimumSystem: manifest.minimumSystemVersion,
             publishedAt: manifest.publishedAt.flatMap {
                 ISO8601DateFormatter().date(from: $0)
-            }
+            },
+            sha256: manifest.sha256?.lowercased(),
+            size: manifest.size
         )
     }
 

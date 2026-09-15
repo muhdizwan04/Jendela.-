@@ -16,47 +16,38 @@ final class AppMenuTests: XCTestCase {
     }
 
     func testInstallProvidesTheStandardEditingShortcuts() {
-        AppMenu.install()
-        let menu = try? XCTUnwrap(NSApp.mainMenu)
-        XCTAssertNotNil(menu)
+        let menu = AppMenu.make()
 
         // Each of these must match a key equivalent, or the shortcut is dead.
-        let expected: [(String, UInt16, NSEvent.ModifierFlags)] = [
-            ("v", 0x09, .command),
-            ("c", 0x08, .command),
-            ("x", 0x07, .command),
-            ("a", 0x00, .command),
-            ("z", 0x06, .command),
+        let expected: [(String, Selector)] = [
+            ("v", #selector(NSText.paste(_:))),
+            ("c", #selector(NSText.copy(_:))),
+            ("x", #selector(NSText.cut(_:))),
+            ("a", #selector(NSText.selectAll(_:))),
+            ("z", Selector(("undo:"))),
         ]
-        for (character, keyCode, flags) in expected {
-            let event = NSEvent.keyEvent(
-                with: .keyDown, location: .zero, modifierFlags: flags,
-                timestamp: 0, windowNumber: 0, context: nil,
-                characters: character, charactersIgnoringModifiers: character,
-                isARepeat: false, keyCode: keyCode)!
-            XCTAssertTrue(NSApp.mainMenu?.performKeyEquivalent(with: event) ?? false,
-                          "⌘\(character.uppercased()) matched no menu item")
+        for (character, action) in expected {
+            let item = menu.items.compactMap(\.submenu).flatMap(\.items).first {
+                $0.keyEquivalent == character
+                    && $0.keyEquivalentModifierMask.contains(.command)
+                    && $0.action == action
+            }
+            XCTAssertNotNil(item, "⌘\(character.uppercased()) matched no menu item")
         }
     }
 
     /// An accessory app has no Dock tile and no Force Quit entry, so if its
     /// menu-bar icon is unreachable ⌘Q is the only way out.
     func testQuitHasAKeyEquivalent() {
-        AppMenu.install()
-        let event = NSEvent.keyEvent(
-            with: .keyDown, location: .zero, modifierFlags: .command,
-            timestamp: 0, windowNumber: 0, context: nil,
-            characters: "q", charactersIgnoringModifiers: "q",
-            isARepeat: false, keyCode: 0x0C)!
+        let menu = AppMenu.make()
         var found: NSMenuItem?
-        for item in NSApp.mainMenu?.items ?? [] {
+        for item in menu.items {
             for candidate in item.submenu?.items ?? []
             where candidate.keyEquivalent == "q" && candidate.keyEquivalentModifierMask == .command {
                 found = candidate
             }
         }
         XCTAssertEqual(found?.action, #selector(NSApplication.terminate(_:)))
-        XCTAssertNotNil(event)
     }
 
     /// A bare SwiftPM executable has no bundle identifier. Matching on an empty

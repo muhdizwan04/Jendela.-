@@ -2,7 +2,8 @@ import assert from "node:assert";
 import crypto from "node:crypto";
 import fs from "node:fs";
 
-process.env.LICENCE_PRIVATE_KEY = fs.readFileSync("../jendela-licence-private.key", "utf8");
+// Tests must never need, read, or risk leaking the seller's production key.
+process.env.LICENCE_PRIVATE_KEY = crypto.randomBytes(32).toString("base64");
 process.env.DB_PATH = "/tmp/jendela-test.db";
 process.env.WEBHOOK_SECRET = "test-secret";
 process.env.PORT = "8788";

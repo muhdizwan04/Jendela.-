@@ -17,21 +17,29 @@ final class UpdateTests: XCTestCase {
           "version": "1.4.0",
           "build": 40,
           "url": "https://example.com/Jendela-1.4.0.dmg",
-          "sha256": "abc",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
           "minimumSystemVersion": "15.0",
           "publishedAt": "2026-01-02T03:04:05Z"
         }
         """.data(using: .utf8)!
-        let release = try XCTUnwrap(Updates.parse(json))
+        let release = try XCTUnwrap(Updates.parse(json, allowedHosts: ["example.com"]))
         XCTAssertEqual(release.version, "1.4.0")
         XCTAssertEqual(release.build, 40)
         XCTAssertEqual(release.url.lastPathComponent, "Jendela-1.4.0.dmg")
         XCTAssertNotNil(release.publishedAt)
+        XCTAssertEqual(release.sha256?.count, 64)
     }
 
     @MainActor func testGarbageManifestIsRejected() {
         XCTAssertNil(Updates.parse(Data("not json".utf8)))
         XCTAssertNil(Updates.parse(Data(#"{"version":"1.0"}"#.utf8)), "a manifest with no url is unusable")
+    }
+
+    @MainActor func testManifestCannotRedirectToUntrustedOrInsecureDownload() {
+        let foreign = Data(#"{"version":"1.0","build":3,"url":"https://evil.example/Jendela.dmg"}"#.utf8)
+        XCTAssertNil(Updates.parse(foreign))
+        let insecure = Data(#"{"version":"1.0","build":3,"url":"http://jendela.app/Jendela.dmg"}"#.utf8)
+        XCTAssertNil(Updates.parse(insecure))
     }
 
     /// Build number is authoritative when both sides have one, because marketing
@@ -40,7 +48,7 @@ final class UpdateTests: XCTestCase {
         let release = Updates.Release(
             version: "1.0.0", build: 41,
             url: URL(string: "https://example.com/x.dmg")!,
-            notes: nil, minimumSystem: nil, publishedAt: nil
+            notes: nil, minimumSystem: nil, publishedAt: nil, sha256: nil, size: nil
         )
         XCTAssertTrue(Updates.isNewer(release, thanVersion: "1.0.0", build: 40))
         XCTAssertFalse(Updates.isNewer(release, thanVersion: "1.0.0", build: 41))
@@ -51,7 +59,7 @@ final class UpdateTests: XCTestCase {
         let release = Updates.Release(
             version: "1.2.0", build: 0,
             url: URL(string: "https://example.com/x.dmg")!,
-            notes: nil, minimumSystem: nil, publishedAt: nil
+            notes: nil, minimumSystem: nil, publishedAt: nil, sha256: nil, size: nil
         )
         XCTAssertTrue(Updates.isNewer(release, thanVersion: "1.1.9", build: 0))
         XCTAssertFalse(Updates.isNewer(release, thanVersion: "1.2.0", build: 0))

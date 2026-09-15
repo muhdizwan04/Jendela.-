@@ -35,9 +35,7 @@ final class ClipboardStoreTests: XCTestCase {
         ClipboardStore.save([entry("correct-horse-battery-staple")])
         ClipboardStore.flush()
 
-        let url = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Jendela/clipboard.dat")
-        let raw = try Data(contentsOf: url)
+        let raw = try Data(contentsOf: ClipboardStore.storageURL)
         XCTAssertFalse(
             raw.range(of: Data("correct-horse-battery-staple".utf8)) != nil,
             "secret text found verbatim in the stored file"

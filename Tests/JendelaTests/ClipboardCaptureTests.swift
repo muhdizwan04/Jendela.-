@@ -7,12 +7,8 @@ final class ClipboardCaptureTests: XCTestCase {
         ClipboardStore.wipe()
         let state = JendelaState()
         state.clipboardItems = []
-
         let secret = "jendela-capture-\(UUID().uuidString)"
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(secret, forType: .string)
-
-        XCTAssertTrue(state.captureClipboardIfChanged(), "a fresh copy should be captured")
+        XCTAssertTrue(state.captureClipboardValue(text: secret), "a fresh copy should be captured")
         XCTAssertEqual(state.clipboardItems.first?.title, secret)
 
         ClipboardStore.flush()

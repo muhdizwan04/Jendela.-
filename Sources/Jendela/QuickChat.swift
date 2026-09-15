@@ -1,6 +1,26 @@
 import AppKit
 import Combine
+import CryptoKit
 import SwiftUI
+
+/// Small, local prompt presets for common notch workflows. They only change
+/// the instruction sent for the current draft; clipboard contents are never
+/// read or transmitted implicitly.
+enum QuickChatMode: String, CaseIterable, Identifiable {
+    case ask = "Ask"
+    case rewrite = "Rewrite"
+    case summarize = "Summarize"
+
+    var id: String { rawValue }
+
+    var systemInstruction: String? {
+        switch self {
+        case .ask: return nil
+        case .rewrite: return "Rewrite the user's text for clarity and natural tone. Return only the revised text unless a brief note is essential."
+        case .summarize: return "Summarize the user's text in 3 concise bullet points. Preserve names, dates, and concrete actions."
+        }
+    }
+}
 
 /// Native chat UI over the supported Codex app-server protocol. The runtime is
 /// started on demand with a separate auth store; no browser or server at launch.
@@ -42,6 +62,8 @@ final class QuickChatClient: ObservableObject {
     @Published private(set) var status = "Sign in with ChatGPT to ask here."
     @Published private(set) var error: String?
     @Published private(set) var modelName = ""
+    @Published private(set) var historyEnabled = true
+    @Published var mode: QuickChatMode = .ask
 
     private var process: Process?
     private var input: FileHandle?
@@ -67,6 +89,9 @@ final class QuickChatClient: ObservableObject {
     init(runtimeURL: URL? = QuickChatClient.runtime, storageDirectory: URL? = nil) {
         self.runtimeURL = runtimeURL
         self.storageDirectory = storageDirectory
+        if UserDefaults.standard.object(forKey: Self.historyPreferenceKey) != nil {
+            historyEnabled = UserDefaults.standard.bool(forKey: Self.historyPreferenceKey)
+        }
     }
 
     nonisolated static var runtime: URL? {
@@ -233,13 +258,16 @@ final class QuickChatClient: ObservableObject {
         idleWork?.cancel()
         draft = ""; error = nil; busy = true
         let history = messages.suffix(12).map { "\($0.role): \($0.text)" }.joined(separator: "\n\n")
-        messages.append(Message(role: "You", text: text))
-        messages.append(Message(role: "AI", text: ""))
+        messages.append(Message(role: "user", text: text))
+        messages.append(Message(role: "assistant", text: ""))
         status = "Thinking…"
         operation = Task {
             do {
                 try await connect()
                 var prompt = text
+                if let instruction = mode.systemInstruction {
+                    prompt = "\(instruction)\n\nText to process:\n\(text)"
+                }
                 if threadID == nil {
                     var params: [String: Any] = ["cwd": directory.appendingPathComponent("Empty").path,
                         "approvalPolicy": "never", "sandbox": "read-only", "ephemeral": true,
@@ -247,7 +275,7 @@ final class QuickChatClient: ObservableObject {
                     if let model { params["model"] = model }
                     let result = try await request("thread/start", params)
                     threadID = (result["thread"] as? [String: Any])?["id"] as? String
-                    if !history.isEmpty { prompt = "Previous conversation:\n\(history)\n\nNew message:\n\(text)" }
+                    if !history.isEmpty { prompt = "Previous conversation:\n\(history)\n\nNew message:\n\(prompt)" }
                 }
                 guard let threadID else { throw failure("Could not start a chat. Try again.") }
                 let result = try await request("turn/start", ["threadId": threadID,
@@ -288,7 +316,7 @@ final class QuickChatClient: ObservableObject {
 
     // MARK: - History
 
-    private var historyURL: URL { directory.appendingPathComponent("history.json") }
+    private static let historyPreferenceKey = "quickAIHistoryEnabled"
 
     /// Serial on purpose. On a concurrent queue two saves in quick succession
     /// can finish out of order and leave an older snapshot as the final state —
@@ -296,30 +324,22 @@ final class QuickChatClient: ObservableObject {
     private static let historyQueue = DispatchQueue(label: "com.widgetmac.quickchat.history")
 
     func loadHistory() {
-        guard let data = try? Data(contentsOf: historyURL),
-              let saved = try? JSONDecoder().decode([Conversation].self, from: data)
-        else { return }
-        history = saved
+        guard historyEnabled else { history = []; return }
+        history = QuickChatHistoryStore.load(in: directory)
     }
 
     private func saveHistory() {
-        let snapshot = history
-        let url = historyURL
-        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        guard historyEnabled else { return }
+        let snapshot = history, directory = directory
         Self.historyQueue.async {
-            guard let data = try? JSONEncoder().encode(snapshot) else { return }
-            try? data.write(to: url, options: .atomic)
-            // Saved questions and answers are as private as the notes beside
-            // them; an atomic write would otherwise leave them world-readable.
-            try? FileManager.default.setAttributes(
-                [.posixPermissions: 0o600], ofItemAtPath: url.path)
+            QuickChatHistoryStore.save(snapshot, in: directory)
         }
     }
 
     /// Files the current exchange away, if there is one worth keeping.
     func archiveCurrent() {
-        guard messages.contains(where: { $0.role == "assistant" }),
-              let first = messages.first(where: { $0.role == "user" })
+        guard messages.contains(where: { $0.role == "assistant" || $0.role == "AI" }),
+              let first = messages.first(where: { $0.role == "user" || $0.role == "You" })
         else { return }
 
         let title = first.text
@@ -348,7 +368,13 @@ final class QuickChatClient: ObservableObject {
 
     func clearHistory() {
         history = []
-        saveHistory()
+        QuickChatHistoryStore.wipe(in: directory)
+    }
+
+    func setHistoryEnabled(_ enabled: Bool) {
+        historyEnabled = enabled
+        UserDefaults.standard.set(enabled, forKey: Self.historyPreferenceKey)
+        if enabled { loadHistory() } else { clearHistory() }
     }
 
     private func request(_ method: String, _ params: [String: Any]) async throws -> [String: Any] {
@@ -462,6 +488,52 @@ final class QuickChatClient: ObservableObject {
     }
 }
 
+/// Encrypted, local-only chat transcripts. The previous plaintext file is
+/// migrated once, then removed only after the encrypted replacement lands.
+enum QuickChatHistoryStore {
+    private static let keyAccount = "quick-ai-history-key"
+    static func dataURL(in directory: URL) -> URL { directory.appendingPathComponent("history.dat") }
+    static func legacyURL(in directory: URL) -> URL { directory.appendingPathComponent("history.json") }
+
+    static func load(in directory: URL) -> [QuickChatClient.Conversation] {
+        let decoder = JSONDecoder()
+        if let resolution = DeviceSecret.resolve(account: keyAccount, fallbackFileName: "quick-ai-history.key"),
+           let blob = try? Data(contentsOf: dataURL(in: directory)),
+           let box = try? AES.GCM.SealedBox(combined: blob),
+           let plain = try? AES.GCM.open(box, using: resolution.key),
+           let conversations = try? decoder.decode([QuickChatClient.Conversation].self, from: plain) {
+            return conversations
+        }
+        guard let plain = try? Data(contentsOf: legacyURL(in: directory)),
+              let conversations = try? decoder.decode([QuickChatClient.Conversation].self, from: plain)
+        else { return [] }
+        if save(conversations, in: directory) {
+            try? FileManager.default.removeItem(at: legacyURL(in: directory))
+        }
+        return conversations
+    }
+
+    @discardableResult
+    static func save(_ conversations: [QuickChatClient.Conversation], in directory: URL) -> Bool {
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        guard let resolution = DeviceSecret.resolve(account: keyAccount, fallbackFileName: "quick-ai-history.key"),
+              let plain = try? JSONEncoder().encode(conversations),
+              let sealed = try? AES.GCM.seal(plain, using: resolution.key),
+              let blob = sealed.combined else { return false }
+        let url = dataURL(in: directory)
+        do {
+            try blob.write(to: url, options: [.atomic, .completeFileProtection])
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+            return true
+        } catch { return false }
+    }
+
+    static func wipe(in directory: URL) {
+        try? FileManager.default.removeItem(at: dataURL(in: directory))
+        try? FileManager.default.removeItem(at: legacyURL(in: directory))
+    }
+}
+
 struct QuickChatView: View {
     @ObservedObject var client: QuickChatClient
     /// Reported upward so the hub stays open while the field has focus, instead
@@ -503,6 +575,10 @@ struct QuickChatView: View {
                     }
                     Menu {
                         Text(client.modelName)
+                        Toggle("Save chat history", isOn: Binding(
+                            get: { client.historyEnabled },
+                            set: { client.setHistoryEnabled($0) }
+                        ))
                         Button("Sign out of Jendela") { client.signOut() }
                         Button("Open ChatGPT") { NSWorkspace.shared.open(URL(string: "https://chatgpt.com")!) }
                     } label: { Image(systemName: "ellipsis.circle").frame(width: 28, height: 28) }
@@ -533,7 +609,8 @@ struct QuickChatView: View {
                             ForEach(client.messages) { message in
                                 VStack(alignment: .leading, spacing: 4) {
                                     HStack {
-                                        Text(message.role).font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
+                                        Text(message.role == "user" || message.role == "You" ? "You" : "AI")
+                                            .font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
                                         Spacer()
                                         if !message.text.isEmpty {
                                             Button {
@@ -555,6 +632,15 @@ struct QuickChatView: View {
                     .onChange(of: client.messages.last?.text) { _, _ in proxy.scrollTo("end", anchor: .bottom) }
                 }
                 HStack(alignment: .bottom, spacing: 8) {
+                    Picker("Mode", selection: $client.mode) {
+                        ForEach(QuickChatMode.allCases) { mode in
+                            Text(mode.rawValue).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .labelsHidden()
+                    .fixedSize()
+                    .help("Choose how Quick AI should handle this draft")
                     TextField("Ask anything…", text: $client.draft, axis: .vertical)
                         .lineLimit(1...3).textFieldStyle(.plain).font(.system(size: 12))
                         .focused($inputFocused)
@@ -572,6 +658,10 @@ struct QuickChatView: View {
             }
             if let error = client.error {
                 Text(error).font(.caption2).foregroundStyle(.orange).lineLimit(3).textSelection(.enabled)
+            }
+            if client.signedIn && client.historyEnabled {
+                Label("History encrypted on this Mac", systemImage: "lock.fill")
+                    .font(.caption2).foregroundStyle(.secondary)
             }
         }
         .onAppear { client.activate() }

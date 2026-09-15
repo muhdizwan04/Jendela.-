@@ -45,6 +45,7 @@ final class SettingsRoundTripTests: XCTestCase {
 
         let saved = state.snapshot()
         SettingsStore.save(saved)
+        SettingsStore.flush()
 
         let reloaded = JendelaState()
         let after = reloaded.snapshot()
